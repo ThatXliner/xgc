@@ -1,36 +1,25 @@
 # xgc
 
-**One CLI for all of Google Workspace — built for humans and AI agents.**
+`xgc` is the executable package for
+[xliner’s GWS-CLI](https://github.com/ThatXliner/xgc), an independently
+maintained fork of
+[Google Workspace CLI](https://github.com/googleworkspace/cli).
 
-`xgc` dynamically generates its command surface at runtime by reading Google's [Discovery Service](https://developers.google.com/discovery). Drive, Gmail, Calendar, and every Workspace API — zero boilerplate, structured JSON output, 40+ agent skills included.
-
-## Install
-
-Download the pre-built binary for your OS and architecture from the **[GitHub Releases](https://github.com/ThatXliner/xgc/releases)** page.
-
-Alternatively, you can use package managers as a convenience layer:
-
-```bash
-cargo install xgc                          # crates.io
-nix run github:ThatXliner/xgc              # nix
-```
-
-<!-- npm distribution is not published yet. Re-enable after publishing @thatxliner/xgc.
-    npm install -g @thatxliner/xgc
--->
-
-## Quick Start
+This fork renames the command to `xgc`, stores configuration under
+`~/.config/xgc`, uses fork-owned `XGC_*` environment variables, and adds named
+authentication profiles.
 
 ```bash
-xgc auth login
-xgc drive files list --params '{"pageSize": 5}'
-xgc gmail users.messages list --params '{"maxResults": 3}'
+cargo install --git https://github.com/ThatXliner/xgc --package xgc --locked
+xgc auth login --profile personal
+xgc --profile personal drive files list
 ```
 
-## Documentation
+There are currently no npm, Homebrew, or Nix packages for this fork.
 
-See the [full README](https://github.com/ThatXliner/xgc#readme) for authentication setup, helper commands, agent skills, and more.
+See the [fork README](https://github.com/ThatXliner/xgc#readme) for profile and
+migration details. For the inherited command surface and broader usage guide,
+see the
+[upstream README](https://github.com/googleworkspace/cli/blob/main/README.md).
 
-## License
-
-Apache-2.0 — see [LICENSE](https://github.com/ThatXliner/xgc/blob/main/LICENSE).
+Apache-2.0. This is not an officially supported Google product.
