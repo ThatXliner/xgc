@@ -7,10 +7,14 @@ Drive, Gmail, Calendar, and every Workspace API. Zero boilerplate. Structured JS
 > This is xliner’s fork of the [Google Workspace CLI](https://github.com/googleworkspace/cli). It is independently maintained, is not the official Google distribution, and is not an officially supported Google product.
 
 <p>
+  <!-- npm distribution is not published yet.
   <a href="https://www.npmjs.com/package/@thatxliner/xgc"><img src="https://img.shields.io/npm/v/@thatxliner/xgc" alt="npm version"></a>
+  -->
   <a href="https://github.com/ThatXliner/xgc/blob/main/LICENSE"><img src="https://img.shields.io/github/license/ThatXliner/xgc" alt="license"></a>
   <a href="https://github.com/ThatXliner/xgc/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/ThatXliner/xgc/ci.yml?branch=main&label=CI" alt="CI status"></a>
+  <!-- npm distribution is not published yet.
   <a href="https://www.npmjs.com/package/@thatxliner/xgc"><img src="https://img.shields.io/npm/unpacked-size/@thatxliner/xgc" alt="install size"></a>
+  -->
 </p>
 <br>
 
@@ -38,7 +42,6 @@ Drive, Gmail, Calendar, and every Workspace API. Zero boilerplate. Structured JS
 
 ## Prerequisites
 
-- **Node.js 18+** — for `npm install` (or download a pre-built binary from [GitHub Releases](https://github.com/ThatXliner/xgc/releases))
 - **A Google Cloud project** — required for OAuth credentials. You can create one via the [Google Cloud Console](https://console.cloud.google.com/) or with the [`gcloud` CLI](https://cloud.google.com/sdk/docs/install) or with the `xgc auth setup` command.
 - **A Google account** with access to Google Workspace
 
@@ -46,11 +49,11 @@ Drive, Gmail, Calendar, and every Workspace API. Zero boilerplate. Structured JS
 
 The recommended way to install `xgc` is to download the pre-built binary for your OS and architecture from the **[GitHub Releases](https://github.com/ThatXliner/xgc/releases)** page. Extract the archive and place the `xgc` binary in your `$PATH`.
 
-For convenience, you can also use `npm` to automate downloading the appropriate binary from GitHub Releases:
+<!-- npm distribution is not published yet. Re-enable after publishing @thatxliner/xgc.
+For convenience, npm can automate downloading the appropriate binary from GitHub Releases:
 
-```bash
-npm install -g @thatxliner/xgc
-```
+    npm install -g @thatxliner/xgc
+-->
 
 Or build from source:
 

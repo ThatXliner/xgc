@@ -187,7 +187,9 @@ jobs:
   publish-npm:
     needs: [plan, release]
     runs-on: ubuntu-latest
-    if: ${{ needs.plan.outputs.publishing == 'true' && needs.plan.outputs.prerelease == 'false' }}
+    # npm distribution is not published yet. Restore the original condition to enable it:
+    # needs.plan.outputs.publishing == 'true' && needs.plan.outputs.prerelease == 'false'
+    if: ${{ false }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 

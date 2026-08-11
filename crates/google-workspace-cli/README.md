@@ -11,10 +11,13 @@ Download the pre-built binary for your OS and architecture from the **[GitHub Re
 Alternatively, you can use package managers as a convenience layer:
 
 ```bash
-npm install -g @thatxliner/xgc             # npm (downloads GitHub release binary)
 cargo install xgc                          # crates.io
 nix run github:ThatXliner/xgc              # nix
 ```
+
+<!-- npm distribution is not published yet. Re-enable after publishing @thatxliner/xgc.
+    npm install -g @thatxliner/xgc
+-->
 
 ## Quick Start
 
