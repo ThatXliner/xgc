@@ -108,14 +108,30 @@ cargo build --release --package xgc
 
 ## Getting started
 
-If you have the Google Cloud CLI installed, the setup wizard can configure a
-project, enable APIs, and prepare an OAuth client:
+`xgc` does not borrow a shared OAuth application. Instead, the bootstrap command
+walks you through creating your own Google Cloud project and Desktop OAuth client
+in the browser. It does not require the `gcloud` CLI:
 
 ```bash
-xgc auth setup
+xgc auth bootstrap
+```
+
+After creating the Desktop client, download its JSON file and let `xgc` validate
+and install it:
+
+```bash
+xgc auth bootstrap \
+  --project your-google-cloud-project \
+  --client-secret ./client_secret_....json
+
 xgc auth login --profile personal
 xgc --profile personal drive files list --params '{"pageSize": 5}'
 ```
+
+The client configuration is shared by all local profiles; each profile receives
+its own encrypted user credentials and token cache. The existing
+`xgc auth setup` command remains available as an optional automated wizard for
+people who already use `gcloud`.
 
 Run `xgc <service> --help` to browse resources and methods, or inspect a method
 schema directly:

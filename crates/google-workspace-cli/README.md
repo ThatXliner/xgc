@@ -11,6 +11,7 @@ authentication profiles.
 
 ```bash
 cargo install --git https://github.com/ThatXliner/xgc --package xgc --locked
+xgc auth bootstrap
 xgc auth login --profile personal
 xgc --profile personal drive files list
 ```

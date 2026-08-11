@@ -446,6 +446,29 @@ fn auth_command() -> clap::Command {
         )
         .subcommand(build_login_subcommand())
         .subcommand(
+            clap::Command::new("bootstrap")
+                .about("Guide manual OAuth setup without requiring gcloud")
+                .arg(
+                    clap::Arg::new("project")
+                        .long("project")
+                        .value_name("PROJECT_ID")
+                        .help("Generate Cloud Console links for this project"),
+                )
+                .arg(
+                    clap::Arg::new("client-secret")
+                        .long("client-secret")
+                        .value_name("FILE")
+                        .help("Validate and install a downloaded Desktop OAuth client JSON file"),
+                )
+                .arg(
+                    clap::Arg::new("force")
+                        .long("force")
+                        .help("Replace an existing xgc OAuth client configuration")
+                        .requires("client-secret")
+                        .action(clap::ArgAction::SetTrue),
+                ),
+        )
+        .subcommand(
             clap::Command::new("setup")
                 .about("Configure GCP project + OAuth client (requires gcloud)")
                 .disable_help_flag(true)
@@ -497,6 +520,11 @@ pub async fn handle_auth_command(args: &[String]) -> Result<(), GwsError> {
 
             handle_login_inner(scope_mode, services_filter).await
         }
+        Some(("bootstrap", sub_m)) => handle_bootstrap(
+            sub_m.get_one::<String>("project").map(String::as_str),
+            sub_m.get_one::<String>("client-secret").map(String::as_str),
+            sub_m.get_flag("force"),
+        ),
         Some(("setup", sub_m)) => {
             // Collect remaining args and delegate to setup's own clap parser.
             let setup_args: Vec<String> = sub_m
@@ -554,6 +582,150 @@ fn parse_login_args(matches: &clap::ArgMatches) -> (ScopeMode, Option<HashSet<St
     });
 
     (scope_mode, services_filter)
+}
+
+fn handle_bootstrap(
+    project_id: Option<&str>,
+    client_secret_file: Option<&str>,
+    force: bool,
+) -> Result<(), GwsError> {
+    if let Some(path) = client_secret_file {
+        let output = install_bootstrap_client(path, project_id, force)?;
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&output).unwrap_or_default()
+        );
+    } else {
+        println!("{}", bootstrap_instructions(project_id)?);
+    }
+    Ok(())
+}
+
+fn validated_project_id(project_id: Option<&str>) -> Result<Option<&str>, GwsError> {
+    project_id
+        .map(crate::validate::validate_api_identifier)
+        .transpose()
+}
+
+fn bootstrap_instructions(project_id: Option<&str>) -> Result<String, GwsError> {
+    let project_id = validated_project_id(project_id)?;
+    let project_query = project_id
+        .map(|id| format!("?project={id}"))
+        .unwrap_or_default();
+    let project_hint = project_id
+        .map(|id| format!("Selected project: {id}\n\n"))
+        .unwrap_or_else(|| {
+            "Tip: pass --project <PROJECT_ID> after creating a project to get project-specific links.\n\n"
+                .to_string()
+        });
+
+    Ok(format!(
+        concat!(
+            "Set up OAuth for xgc (no gcloud required)\n",
+            "==========================================\n\n",
+            "{project_hint}",
+            "1. Create or select a Google Cloud project:\n",
+            "   https://console.cloud.google.com/projectcreate\n\n",
+            "2. Configure the OAuth consent screen. For personal testing, choose External,\n",
+            "   keep the app in testing mode, and add each Google account as a test user:\n",
+            "   https://console.cloud.google.com/apis/credentials/consent{project_query}\n\n",
+            "3. Enable the Google Workspace APIs you intend to use:\n",
+            "   https://console.cloud.google.com/apis/library{project_query}\n\n",
+            "4. Create an OAuth client ID with Application type 'Desktop app':\n",
+            "   https://console.cloud.google.com/apis/credentials{project_query}\n\n",
+            "5. Download the client JSON, then install it from the directory containing it:\n",
+            "   xgc auth bootstrap --client-secret ./client_secret_....json{project_arg}\n\n",
+            "6. Log in with the default or a named profile:\n",
+            "   {login_command}\n\n",
+            "xgc stores the shared OAuth client at:\n",
+            "   {config_path}\n\n",
+            "It does not modify an upstream ~/.config/gws installation."
+        ),
+        project_hint = project_hint,
+        project_query = project_query,
+        project_arg = project_id
+            .map(|id| format!(" --project {id}"))
+            .unwrap_or_default(),
+        login_command = if active_profile() == DEFAULT_PROFILE {
+            "xgc auth login".to_string()
+        } else {
+            format!("xgc auth login --profile {}", active_profile())
+        },
+        config_path = crate::oauth_config::client_config_path().display(),
+    ))
+}
+
+fn install_bootstrap_client(
+    source: &str,
+    expected_project_id: Option<&str>,
+    force: bool,
+) -> Result<serde_json::Value, GwsError> {
+    let expected_project_id = validated_project_id(expected_project_id)?;
+    let source_path = crate::validate::validate_safe_file_path(source, "--client-secret")?;
+    let data = std::fs::read_to_string(&source_path).map_err(|e| {
+        GwsError::Validation(format!(
+            "Failed to read OAuth client file '{}': {e}",
+            source_path.display()
+        ))
+    })?;
+    let client_file: crate::oauth_config::ClientSecretFile =
+        serde_json::from_str(&data).map_err(|e| {
+            GwsError::Validation(format!(
+                "Invalid Desktop OAuth client JSON in '{}': {e}",
+                source_path.display()
+            ))
+        })?;
+    let client = client_file.installed;
+
+    if !client.client_id.ends_with(".apps.googleusercontent.com") {
+        return Err(GwsError::Validation(
+            "OAuth client ID must be a Google Desktop client ending in '.apps.googleusercontent.com'"
+                .to_string(),
+        ));
+    }
+    if client.client_secret.trim().is_empty() {
+        return Err(GwsError::Validation(
+            "OAuth client JSON is missing client_secret".to_string(),
+        ));
+    }
+    if let Some(expected) = expected_project_id {
+        if !client.project_id.is_empty() && client.project_id != expected {
+            return Err(GwsError::Validation(format!(
+                "OAuth client belongs to project '{}', not requested project '{expected}'",
+                client.project_id
+            )));
+        }
+    }
+
+    let destination = crate::oauth_config::client_config_path();
+    if destination.exists() && !force {
+        return Err(GwsError::Validation(format!(
+            "OAuth client configuration already exists at {}. Re-run with --force to replace it.",
+            destination.display()
+        )));
+    }
+
+    let project_id = expected_project_id.unwrap_or(&client.project_id);
+    let saved_path = crate::oauth_config::save_client_config(
+        &client.client_id,
+        &client.client_secret,
+        project_id,
+    )
+    .map_err(|e| GwsError::Validation(format!("Failed to save OAuth client: {e}")))?;
+    let next_command = if active_profile() == DEFAULT_PROFILE {
+        "xgc auth login".to_string()
+    } else {
+        format!("xgc auth login --profile {}", active_profile())
+    };
+
+    Ok(json!({
+        "status": "success",
+        "message": "Desktop OAuth client installed. xgc is ready to open the Google login flow.",
+        "client_id": client.client_id,
+        "project_id": project_id,
+        "client_config": saved_path.display().to_string(),
+        "next_command": next_command,
+    }))
 }
 
 /// Run the `auth login` flow.
@@ -793,10 +965,11 @@ fn resolve_client_credentials() -> Result<(String, String, Option<String>), GwsE
         Err(_) => Err(GwsError::Auth(format!(
             "No OAuth client configured.\n\n\
                  Either:\n  \
-                   1. Run `xgc auth setup` to configure a GCP project and OAuth client\n  \
-                   2. Download client_secret.json from Google Cloud Console and save it to:\n     \
+                   1. Run `xgc auth bootstrap` for guided setup without gcloud\n  \
+                   2. Run `xgc auth setup` for the automated gcloud-based wizard\n  \
+                   3. Download client_secret.json from Google Cloud Console and save it to:\n     \
                       {}\n  \
-                   3. Set env vars: XGC_CLIENT_ID and XGC_CLIENT_SECRET",
+                   4. Set env vars: XGC_CLIENT_ID and XGC_CLIENT_SECRET",
             crate::oauth_config::client_config_path().display()
         ))),
     }
@@ -2069,6 +2242,121 @@ mod tests {
             GwsError::Validation(msg) => assert!(msg.contains("frobnicate")),
             other => panic!("Expected Validation error, got: {other:?}"),
         }
+    }
+
+    #[test]
+    fn auth_command_exposes_bootstrap() {
+        let command = auth_command();
+        let bootstrap = command
+            .find_subcommand("bootstrap")
+            .expect("bootstrap subcommand");
+        assert!(bootstrap
+            .get_arguments()
+            .any(|arg| arg.get_id() == "project"));
+        assert!(bootstrap
+            .get_arguments()
+            .any(|arg| arg.get_id() == "client-secret"));
+    }
+
+    #[test]
+    fn bootstrap_instructions_include_project_specific_links() {
+        let instructions = bootstrap_instructions(Some("xgc-personal-123")).unwrap();
+        assert!(instructions.contains("?project=xgc-personal-123"));
+        assert!(instructions.contains("Application type 'Desktop app'"));
+        assert!(instructions.contains("xgc auth bootstrap --client-secret"));
+        assert!(instructions.contains("xgc auth login"));
+    }
+
+    #[test]
+    fn bootstrap_instructions_without_project_explain_next_step() {
+        let instructions = bootstrap_instructions(None).unwrap();
+        assert!(instructions.contains("pass --project <PROJECT_ID>"));
+        assert!(!instructions.contains("?project="));
+    }
+
+    #[tokio::test]
+    async fn handle_auth_command_bootstrap_succeeds_without_gcloud() {
+        let args = vec![
+            "bootstrap".to_string(),
+            "--project".to_string(),
+            "xgc-personal-123".to_string(),
+        ];
+        assert!(handle_auth_command(&args).await.is_ok());
+    }
+
+    #[test]
+    fn bootstrap_rejects_unsafe_project_ids() {
+        assert!(bootstrap_instructions(Some("project?redirect=evil")).is_err());
+        assert!(bootstrap_instructions(Some("../project")).is_err());
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn bootstrap_installs_valid_desktop_client_without_exposing_secret() {
+        let cwd = std::env::current_dir().unwrap();
+        let workspace = tempfile::tempdir_in(cwd).unwrap();
+        let config_dir = workspace.path().join("config");
+        let source = workspace.path().join("client_secret.json");
+        std::fs::write(
+            &source,
+            r#"{
+                "installed": {
+                    "client_id": "123.apps.googleusercontent.com",
+                    "project_id": "xgc-personal-123",
+                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+                    "client_secret": "GOCSPX-test-secret",
+                    "redirect_uris": ["http://localhost"]
+                }
+            }"#,
+        )
+        .unwrap();
+        unsafe { std::env::set_var("XGC_CONFIG_DIR", &config_dir) };
+
+        let relative_source = source
+            .strip_prefix(std::env::current_dir().unwrap())
+            .unwrap();
+        let output = install_bootstrap_client(
+            relative_source.to_str().unwrap(),
+            Some("xgc-personal-123"),
+            false,
+        )
+        .unwrap();
+
+        assert_eq!(output["status"], "success");
+        assert_eq!(output["project_id"], "xgc-personal-123");
+        assert!(!output.to_string().contains("GOCSPX-test-secret"));
+        let installed = crate::oauth_config::load_client_config().unwrap();
+        assert_eq!(installed.client_id, "123.apps.googleusercontent.com");
+        assert_eq!(installed.client_secret, "GOCSPX-test-secret");
+
+        let duplicate = install_bootstrap_client(
+            relative_source.to_str().unwrap(),
+            Some("xgc-personal-123"),
+            false,
+        );
+        assert!(duplicate.unwrap_err().to_string().contains("--force"));
+
+        let mismatch = install_bootstrap_client(
+            relative_source.to_str().unwrap(),
+            Some("another-project"),
+            true,
+        );
+        assert!(mismatch
+            .unwrap_err()
+            .to_string()
+            .contains("not requested project"));
+
+        let replacement = install_bootstrap_client(
+            relative_source.to_str().unwrap(),
+            Some("xgc-personal-123"),
+            true,
+        )
+        .unwrap();
+        assert_eq!(replacement["status"], "success");
+
+        unsafe { std::env::remove_var("XGC_CONFIG_DIR") };
     }
 
     #[test]
