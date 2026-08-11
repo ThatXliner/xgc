@@ -110,6 +110,23 @@ fn extract_authorization_code(request_line: &str) -> Result<String, GwsError> {
         .ok_or_else(|| GwsError::Auth("No authorization code in callback".to_string()))
 }
 
+fn open_authorization_url_with<F, E>(url: &str, opener: F) -> Result<(), String>
+where
+    F: FnOnce(&str) -> Result<(), E>,
+    E: std::fmt::Display,
+{
+    opener(url).map_err(|error| error.to_string())
+}
+
+fn present_authorization_url(url: &str) {
+    eprintln!("Opening your browser to authenticate...");
+    if let Err(error) = open_authorization_url_with(url, webbrowser::open) {
+        eprintln!("Could not open the browser automatically: {error}");
+    }
+    eprintln!("If the browser did not open, visit this URL:\n");
+    eprintln!("  {url}\n");
+}
+
 /// Perform OAuth login flow with proxy support using reqwest for token exchange
 async fn login_with_proxy_support(
     client_id: &str,
@@ -127,8 +144,7 @@ async fn login_with_proxy_support(
 
     let auth_url = build_proxy_auth_url(client_id, &redirect_uri, scopes);
 
-    println!("Open this URL in your browser to authenticate:\n");
-    println!("  {}\n", auth_url);
+    present_authorization_url(&auth_url);
 
     // Wait for OAuth callback
     let (mut stream, _) = listener
@@ -753,7 +769,7 @@ pub async fn run_login(args: &[String]) -> Result<(), GwsError> {
 
     handle_login_inner(scope_mode, services_filter).await
 }
-/// Custom delegate that prints the OAuth URL on its own line for easy copying.
+/// Custom delegate that opens the OAuth URL and prints it for manual fallback.
 /// Optionally includes `login_hint` in the URL for account pre-selection.
 struct CliFlowDelegate {
     login_hint: Option<String>,
@@ -782,8 +798,7 @@ impl yup_oauth2::authenticator_delegate::InstalledFlowDelegate for CliFlowDelega
             } else {
                 url.to_string()
             };
-            eprintln!("Open this URL in your browser to authenticate:\n");
-            eprintln!("  {display_url}\n");
+            present_authorization_url(&display_url);
             Ok(String::new())
         })
     }
@@ -2935,6 +2950,29 @@ mod tests {
     fn extract_authorization_code_rejects_missing_code() {
         let err = extract_authorization_code("GET /?state=abc HTTP/1.1").unwrap_err();
         assert!(err.to_string().contains("No authorization code"));
+    }
+
+    #[test]
+    fn open_authorization_url_passes_url_to_browser() {
+        let expected_url = "https://accounts.google.com/o/oauth2/auth?client_id=test";
+        let mut opened_url = None;
+
+        let result = open_authorization_url_with(expected_url, |url| {
+            opened_url = Some(url.to_string());
+            Ok::<(), std::io::Error>(())
+        });
+
+        assert!(result.is_ok());
+        assert_eq!(opened_url.as_deref(), Some(expected_url));
+    }
+
+    #[test]
+    fn open_authorization_url_returns_browser_error() {
+        let result = open_authorization_url_with("https://example.com", |_| {
+            Err(std::io::Error::other("no browser available"))
+        });
+
+        assert_eq!(result.unwrap_err(), "no browser available");
     }
 
     #[test]
