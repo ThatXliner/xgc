@@ -21,15 +21,22 @@ pub fn build_cli(doc: &RestDescription) -> Command {
     let about_text = doc
         .description
         .clone()
-        .unwrap_or_else(|| "Google Workspace CLI".to_string());
-    let mut root = Command::new("gws")
+        .unwrap_or_else(|| "xliner’s GWS-CLI".to_string());
+    let mut root = Command::new("xgc")
         .about(about_text)
         .subcommand_required(true)
         .arg_required_else_help(true)
         .arg(
+            clap::Arg::new("profile")
+                .long("profile")
+                .help("Use a named auth profile (default: default; also reads XGC_PROFILE)")
+                .value_name("PROFILE")
+                .global(true),
+        )
+        .arg(
             clap::Arg::new("sanitize")
                 .long("sanitize")
-                .help("Sanitize API responses through a Model Armor template. Requires cloud-platform scope. Format: projects/PROJECT/locations/LOCATION/templates/TEMPLATE. Also reads GWS_SANITIZE_TEMPLATE env var.")
+                .help("Sanitize API responses through a Model Armor template. Requires cloud-platform scope. Format: projects/PROJECT/locations/LOCATION/templates/TEMPLATE. Also reads XGC_SANITIZE_TEMPLATE env var.")
                 .value_name("TEMPLATE")
                 .global(true),
         )

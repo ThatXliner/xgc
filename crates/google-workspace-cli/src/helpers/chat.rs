@@ -49,10 +49,10 @@ impl Helper for ChatHelper {
                 .after_help(
                     "\
 EXAMPLES:
-  gws chat +send --space spaces/AAAAxxxx --text 'Hello team!'
+  xgc chat +send --space spaces/AAAAxxxx --text 'Hello team!'
 
 TIPS:
-  Use 'gws chat spaces list' to find space names.
+  Use 'xgc chat spaces list' to find space names.
   For cards or threaded replies, use the raw API instead.",
                 ),
         );
@@ -202,8 +202,10 @@ mod tests {
             },
         );
 
-        let mut messages_res = RestResource::default();
-        messages_res.methods = methods;
+        let messages_res = RestResource {
+            methods,
+            ..Default::default()
+        };
 
         let mut spaces_res = RestResource::default();
         spaces_res

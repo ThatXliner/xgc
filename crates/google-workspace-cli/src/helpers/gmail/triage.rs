@@ -298,7 +298,7 @@ mod tests {
     fn empty_result_message_is_not_json() {
         // Verify that no_messages_msg() produces a human-readable string that
         // belongs on stderr, not stdout. If it were valid JSON it could corrupt
-        // pipe workflows like `gws gmail +triage | jq`.
+        // pipe workflows like `xgc gmail +triage | jq`.
         let msg = no_messages_msg("label:inbox");
         assert!(serde_json::from_str::<serde_json::Value>(&msg).is_err());
     }

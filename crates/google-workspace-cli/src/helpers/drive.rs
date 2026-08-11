@@ -54,9 +54,9 @@ impl Helper for DriveHelper {
                 .after_help(
                     "\
 EXAMPLES:
-  gws drive +upload ./report.pdf
-  gws drive +upload ./report.pdf --parent FOLDER_ID
-  gws drive +upload ./data.csv --name 'Sales Data.csv'
+  xgc drive +upload ./report.pdf
+  xgc drive +upload ./report.pdf --parent FOLDER_ID
+  xgc drive +upload ./data.csv --name 'Sales Data.csv'
 
 TIPS:
   MIME type is detected automatically.

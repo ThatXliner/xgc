@@ -8,20 +8,19 @@ metadata:
     domain: "productivity"
     requires:
       bins:
-        - gws
+        - xgc
       skills:
-        - gws-tasks
+        - xgc-tasks
 ---
 
 # Review Overdue Tasks
 
-> **PREREQUISITE:** Load the following skills to execute this recipe: `gws-tasks`
+> **PREREQUISITE:** Load the following skills to execute this recipe: `xgc-tasks`
 
 Find Google Tasks that are past due and need attention.
 
 ## Steps
 
-1. List task lists: `gws tasks tasklists list --format table`
-2. List tasks with status: `gws tasks tasks list --params '{"tasklist": "TASKLIST_ID", "showCompleted": false}' --format table`
+1. List task lists: `xgc tasks tasklists list --format table`
+2. List tasks with status: `xgc tasks tasks list --params '{"tasklist": "TASKLIST_ID", "showCompleted": false}' --format table`
 3. Review due dates and prioritize overdue items
-

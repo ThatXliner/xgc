@@ -20,23 +20,23 @@
 //!
 //! ## Environment Variables
 //!
-//! - `GOOGLE_WORKSPACE_CLI_LOG`: Filter directive for stderr logging
-//!   (e.g., `gws=debug`, `gws=trace`). If unset, no stderr logging.
+//! - `XGC_LOG`: Filter directive for stderr logging
+//!   (e.g., `xgc=debug`, `xgc=trace`). If unset, no stderr logging.
 //!
-//! - `GOOGLE_WORKSPACE_CLI_LOG_FILE`: Directory path for JSON-line log
+//! - `XGC_LOG_FILE`: Directory path for JSON-line log
 //!   files with daily rotation. If unset, no file logging.
 
 use tracing_subscriber::prelude::*;
 
 /// Environment variable controlling stderr log output.
-const ENV_LOG: &str = "GOOGLE_WORKSPACE_CLI_LOG";
+const ENV_LOG: &str = "XGC_LOG";
 
 /// Environment variable controlling file log output.
-const ENV_LOG_FILE: &str = "GOOGLE_WORKSPACE_CLI_LOG_FILE";
+const ENV_LOG_FILE: &str = "XGC_LOG_FILE";
 
 /// Initialize the tracing subscriber based on environment variables.
 ///
-/// If neither `GOOGLE_WORKSPACE_CLI_LOG` nor `GOOGLE_WORKSPACE_CLI_LOG_FILE`
+/// If neither `XGC_LOG` nor `XGC_LOG_FILE`
 /// is set, this is a no-op and logging adds zero overhead.
 ///
 /// This function must be called at most once (typically in `main()`).
@@ -53,7 +53,7 @@ pub fn init_logging() {
 
     let registry = tracing_subscriber::registry();
 
-    // Stderr layer: human-readable, filtered by GOOGLE_WORKSPACE_CLI_LOG
+    // Stderr layer: human-readable, filtered by XGC_LOG
     let stderr_layer = stderr_filter.map(|filter| {
         let env_filter = tracing_subscriber::EnvFilter::new(filter);
         tracing_subscriber::fmt::layer()
@@ -65,13 +65,13 @@ pub fn init_logging() {
 
     // File layer: JSON-line output with daily rotation
     let (file_layer, _guard) = if let Some(ref dir) = log_file_dir {
-        let file_appender = tracing_appender::rolling::daily(dir, "gws.log");
+        let file_appender = tracing_appender::rolling::daily(dir, "xgc.log");
         let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
         let layer = tracing_subscriber::fmt::layer()
             .json()
             .with_writer(non_blocking)
             .with_target(true)
-            .with_filter(tracing_subscriber::EnvFilter::new("gws=debug"));
+            .with_filter(tracing_subscriber::EnvFilter::new("xgc=debug"));
         (Some(layer), Some(guard))
     } else {
         (None, None)
@@ -106,7 +106,7 @@ mod tests {
 
     #[test]
     fn test_env_var_names() {
-        assert_eq!(ENV_LOG, "GOOGLE_WORKSPACE_CLI_LOG");
-        assert_eq!(ENV_LOG_FILE, "GOOGLE_WORKSPACE_CLI_LOG_FILE");
+        assert_eq!(ENV_LOG, "XGC_LOG");
+        assert_eq!(ENV_LOG_FILE, "XGC_LOG_FILE");
     }
 }

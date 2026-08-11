@@ -2,7 +2,7 @@
 
 ## Design Principle
 
-The core design of `gws` is **schema-driven**: commands are dynamically generated from Google Discovery Documents at runtime. This avoids maintaining a hardcoded, unbounded argument surface. **Helpers must complement this design, not duplicate it.**
+The core design of `xgc` is **schema-driven**: commands are dynamically generated from Google Discovery Documents at runtime. This avoids maintaining a hardcoded, unbounded argument surface. **Helpers must complement this design, not duplicate it.**
 
 ## When a Helper is Justified
 
@@ -17,7 +17,7 @@ A `+helper` command should exist only when it provides value that Discovery-base
 | **Multipart upload** | `+upload` | Handles resumable upload protocol with progress |
 | **Workflow recipes** | `+standup-report` | Chains calls across multiple services |
 
-**Litmus test:** Can the user achieve the same result with `gws <service> <resource> <method> --params '{...}'`? If yes, don't add a helper.
+**Litmus test:** Can the user achieve the same result with `xgc <service> <resource> <method> --params '{...}'`? If yes, don't add a helper.
 
 ## Anti-Patterns
 
@@ -25,7 +25,7 @@ A `+helper` command should exist only when it provides value that Discovery-base
 
 If a helper wraps one API call that Discovery already exposes, reject it.
 
-**Real example:** `+revisions` (PR #563) wrapped `gws drive files-revisions list` — same single API call, zero added value.
+**Real example:** `+revisions` (PR #563) wrapped `xgc drive files-revisions list` — same single API call, zero added value.
 
 ### ❌ Anti-pattern 2: Unbounded Flag Accumulation
 

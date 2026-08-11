@@ -147,7 +147,7 @@ impl KeyringProvider for OsKeyring {
 
 /// Which backend to use for encryption key storage.
 ///
-/// Controlled by `GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND`:
+/// Controlled by `XGC_KEYRING_BACKEND`:
 /// - `"keyring"` (default): Use OS keyring, fall back to `.encryption_key` file
 /// - `"file"`: Use `.encryption_key` file only (for Docker/CI/headless)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -158,7 +158,7 @@ enum KeyringBackend {
 
 impl KeyringBackend {
     fn from_env() -> Self {
-        let raw = std::env::var("GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND").unwrap_or_default();
+        let raw = std::env::var("XGC_KEYRING_BACKEND").unwrap_or_default();
         let lower = raw.to_lowercase();
         match lower.as_str() {
             "file" => KeyringBackend::File,
@@ -166,7 +166,7 @@ impl KeyringBackend {
             other => {
                 // Item 1: warn on unrecognized values
                 eprintln!(
-                    "Warning: unknown GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND=\"{other}\", \
+                    "Warning: unknown XGC_KEYRING_BACKEND=\"{other}\", \
                      defaulting to \"keyring\". Valid values: \"keyring\", \"file\"."
                 );
                 KeyringBackend::Keyring
@@ -230,7 +230,10 @@ fn resolve_key(
                     // Keyring is empty — fall through to generate new.
                 }
                 Err(e) => {
-                    anyhow::bail!("OS keyring failed: {}. Set GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND=file to use file storage.", sanitize_for_terminal(&e.to_string()));
+                    anyhow::bail!(
+                        "OS keyring failed: {}. Set XGC_KEYRING_BACKEND=file to use file storage.",
+                        sanitize_for_terminal(&e.to_string())
+                    );
                 }
             }
 
@@ -343,7 +346,7 @@ fn resolve_key(
 /// Returns the encryption key, generating and persisting one if it doesn't exist.
 ///
 /// The key is cached in-process via `OnceLock` so it is only read from disk once.
-/// Backend selection is controlled by `GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND`.
+/// Backend selection is controlled by `XGC_KEYRING_BACKEND`.
 fn get_or_create_key() -> anyhow::Result<[u8; 32]> {
     static KEY: OnceLock<[u8; 32]> = OnceLock::new();
 
@@ -364,7 +367,7 @@ fn get_or_create_key() -> anyhow::Result<[u8; 32]> {
         .unwrap_or_else(|_| "unknown-user".to_string());
 
     let key_file = crate::auth_commands::config_dir().join(".encryption_key");
-    let provider = OsKeyring::new("gws-cli", &username);
+    let provider = OsKeyring::new("xgc-cli", &username);
 
     let key = resolve_key(backend, &provider, &key_file)?;
 
@@ -410,7 +413,7 @@ pub fn decrypt(data: &[u8]) -> anyhow::Result<Vec<u8>> {
     let plaintext = cipher.decrypt(nonce, &data[12..]).map_err(|_| {
         anyhow::anyhow!(
             "Decryption failed. Credentials may have been created on a different machine. \
-                 Run `gws auth logout` and `gws auth login` to re-authenticate."
+                 Run `xgc auth logout` and `xgc auth login` to re-authenticate."
         )
     })?;
 
@@ -424,7 +427,7 @@ pub fn active_backend_name() -> &'static str {
 
 /// Returns the path for encrypted credentials.
 pub fn encrypted_credentials_path() -> PathBuf {
-    crate::auth_commands::config_dir().join("credentials.enc")
+    crate::auth_commands::profile_config_dir().join("credentials.enc")
 }
 
 /// Saves credentials JSON to an encrypted file.
@@ -482,12 +485,14 @@ mod tests {
         PlatformError,
     }
 
+    type PasswordSetter = Box<dyn FnMut(&str)>;
+
     /// Mock keyring for testing `resolve_key()` without OS dependencies.
     struct MockKeyring {
         get_state: MockState,
         set_succeeds: bool,
         last_set: RefCell<Option<String>>,
-        on_set: RefCell<Option<Box<dyn FnMut(&str)>>>,
+        on_set: RefCell<Option<PasswordSetter>>,
     }
 
     impl MockKeyring {

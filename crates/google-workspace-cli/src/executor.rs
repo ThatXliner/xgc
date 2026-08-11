@@ -622,7 +622,7 @@ fn build_url(
         if !is_repeated && value.is_array() {
             eprintln!(
                 "Warning: parameter '{}' is not marked as repeated; array value will be stringified. \
-                 Use `gws schema` to check which parameters accept arrays.",
+                 Use `xgc schema` to check which parameters accept arrays.",
                 key
             );
         }
@@ -758,8 +758,8 @@ fn handle_error_response<T>(
     // If 401/403 and no auth was provided, give a helpful message
     if (status.as_u16() == 401 || status.as_u16() == 403) && *auth_method == AuthMethod::None {
         return Err(GwsError::Auth(
-            "Access denied. No credentials provided. Run `gws auth login` or set \
-             GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE to an OAuth credentials JSON file."
+            "Access denied. No credentials provided. Run `xgc auth login` or set \
+             XGC_CREDENTIALS_FILE to an OAuth credentials JSON file."
                 .to_string(),
         ));
     }
@@ -1197,7 +1197,7 @@ mod tests {
     #[test]
     fn test_pagination_config_default() {
         let config = PaginationConfig::default();
-        assert_eq!(config.page_all, false);
+        assert!(!config.page_all);
         assert_eq!(config.page_limit, 10);
         assert_eq!(config.page_delay_ms, 100);
     }
@@ -1533,11 +1533,11 @@ mod tests {
         let file_content = b"Hello stream";
         std::fs::write(&file_path, file_content).unwrap();
 
-        let metadata = Some(json!({ "name": "small.txt" }));
+        let metadata = json!({ "name": "small.txt" });
         let file_size = file_content.len() as u64;
 
         let (_body, content_type, declared_len) = build_multipart_stream(
-            &metadata,
+            &Some(metadata.clone()),
             file_path.to_str().unwrap(),
             file_size,
             "text/plain",
@@ -1550,7 +1550,7 @@ mod tests {
         // Manually compute expected content length:
         // preamble = "--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{json}\r\n--{boundary}\r\nContent-Type: text/plain\r\n\r\n"
         // postamble = "\r\n--{boundary}--\r\n"
-        let metadata_json = serde_json::to_string(&metadata.unwrap()).unwrap();
+        let metadata_json = serde_json::to_string(&metadata).unwrap();
         let preamble = format!(
             "--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{metadata_json}\r\n\
              --{boundary}\r\nContent-Type: text/plain\r\n\r\n"

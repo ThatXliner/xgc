@@ -8,15 +8,15 @@
           ║          ╚██████╔╝╚███╔ ███╔╝███████║          ║
           ║           ╚═════╝  ╚══╝ ╚══╝ ╚══════╝          ║
           ║                                                ║
-          ║              Google Workspace CLI              ║
+          ║                xliner’s GWS-CLI                 ║
           ║             ─────────────────────              ║
           ║              One tool. Every API.              ║
           ║                                                ║
           ╚════════════════════════════════════════════════╝
         
-                  ⭐ github.com/googleworkspace/cli
+                  ⭐ github.com/ThatXliner/xgc
         
-                    npm i -g @googleworkspace/cli
+                npm i -g @thatxliner/xgc
         
                   ────────────────────────────────
                          Built with Rust. 🦀
@@ -26,4 +26,3 @@
                        📅 Calendar 📊 Sheets             
                        📝 Docs     🎨 Slides             
                        💬 Chat     👥 Admin              
-  

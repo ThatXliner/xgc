@@ -16,6 +16,7 @@ use std::collections::HashSet;
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 use serde::Deserialize;
 use serde_json::json;
@@ -281,7 +282,7 @@ pub const DEFAULT_SCOPES: &[&str] = MINIMAL_SCOPES;
 
 /// Full scopes — all common Workspace APIs plus GCP platform access.
 ///
-/// Use `gws auth login --full` to request these.  Unverified OAuth apps will
+/// Use `xgc auth login --full` to request these.  Unverified OAuth apps will
 /// receive a Google consent-screen warning, and some scopes (e.g. `pubsub`,
 /// `cloud-platform`) require app verification or a Workspace domain admin to
 /// grant access.
@@ -309,40 +310,77 @@ const READONLY_SCOPES: &[&str] = &[
 ];
 
 pub fn config_dir() -> PathBuf {
-    if let Ok(dir) = std::env::var("GOOGLE_WORKSPACE_CLI_CONFIG_DIR") {
+    if let Ok(dir) = std::env::var("XGC_CONFIG_DIR") {
         return PathBuf::from(dir);
     }
 
-    // Use ~/.config/gws on all platforms for a consistent, user-friendly path.
-    let primary = dirs::home_dir()
+    // Use ~/.config/xgc on all platforms for a consistent, user-friendly path.
+    dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join(".config")
-        .join("gws");
-    if primary.exists() {
-        return primary;
-    }
-
-    // Backward compat: fall back to OS-specific config dir for existing installs
-    // (e.g. ~/Library/Application Support/gws on macOS, %APPDATA%\gws on Windows).
-    let legacy = dirs::config_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("gws");
-    if legacy.exists() {
-        return legacy;
-    }
-
-    primary
+        .join("xgc")
 }
 
-fn plain_credentials_path() -> PathBuf {
-    if let Ok(path) = std::env::var("GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE") {
+static ACTIVE_PROFILE: OnceLock<String> = OnceLock::new();
+
+pub(crate) const DEFAULT_PROFILE: &str = "default";
+
+pub(crate) fn validate_profile_name(name: &str) -> Result<(), GwsError> {
+    if name.is_empty()
+        || name.starts_with('-')
+        || !name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        return Err(GwsError::Validation(
+            "Profile names must start with a letter, number, or '_' and may only contain letters, numbers, '-' and '_'".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+pub(crate) fn set_active_profile(profile: String) -> Result<(), GwsError> {
+    validate_profile_name(&profile)?;
+    let _ = ACTIVE_PROFILE.set(profile);
+    Ok(())
+}
+
+pub(crate) fn active_profile() -> String {
+    ACTIVE_PROFILE
+        .get()
+        .cloned()
+        .unwrap_or_else(|| DEFAULT_PROFILE.to_string())
+}
+
+fn profile_config_dir_for(profile: &str) -> PathBuf {
+    if profile == DEFAULT_PROFILE {
+        config_dir()
+    } else {
+        config_dir().join("profiles").join(profile)
+    }
+}
+
+pub(crate) fn profile_config_dir() -> PathBuf {
+    profile_config_dir_for(&active_profile())
+}
+
+pub(crate) fn plain_credentials_path() -> PathBuf {
+    if let Ok(path) = std::env::var("XGC_CREDENTIALS_FILE") {
         return PathBuf::from(path);
     }
-    config_dir().join("credentials.json")
+    profile_config_dir().join("credentials.json")
 }
 
-fn token_cache_path() -> PathBuf {
-    config_dir().join("token_cache.json")
+pub(crate) fn token_cache_path() -> PathBuf {
+    profile_config_dir().join("token_cache.json")
+}
+
+pub(crate) fn service_account_token_cache_path() -> PathBuf {
+    profile_config_dir().join("sa_token_cache.json")
+}
+
+pub(crate) fn oauth_temp_credentials_path() -> PathBuf {
+    profile_config_dir().join("credentials.tmp")
 }
 
 /// Which scope set to use for login.
@@ -394,11 +432,18 @@ fn build_login_subcommand() -> clap::Command {
         )
 }
 
-/// Build the clap Command for `gws auth`.
+/// Build the clap Command for `xgc auth`.
 fn auth_command() -> clap::Command {
     clap::Command::new("auth")
         .about("Manage authentication for Google Workspace APIs")
         .subcommand_required(false)
+        .arg(
+            clap::Arg::new("profile")
+                .long("profile")
+                .help("Use a named auth profile (default: default; also reads XGC_PROFILE)")
+                .value_name("PROFILE")
+                .global(true),
+        )
         .subcommand(build_login_subcommand())
         .subcommand(
             clap::Command::new("setup")
@@ -428,7 +473,7 @@ fn auth_command() -> clap::Command {
         .subcommand(clap::Command::new("logout").about("Clear saved credentials and token cache"))
 }
 
-/// Handle `gws auth <subcommand>`.
+/// Handle `xgc auth <subcommand>`.
 pub async fn handle_auth_command(args: &[String]) -> Result<(), GwsError> {
     let matches = match auth_command()
         .try_get_matches_from(std::iter::once("auth".to_string()).chain(args.iter().cloned()))
@@ -476,7 +521,7 @@ pub async fn handle_auth_command(args: &[String]) -> Result<(), GwsError> {
     }
 }
 
-/// Build the clap Command for `gws auth login` (used by `run_login` for
+/// Build the clap Command for `xgc auth login` (used by `run_login` for
 /// standalone parsing when called from setup.rs).
 fn login_command() -> clap::Command {
     build_login_subcommand()
@@ -579,7 +624,7 @@ async fn handle_login_inner(
 ) -> Result<(), GwsError> {
     // Resolve client_id and client_secret:
     // 1. Env vars (highest priority)
-    // 2. Saved client_secret.json from `gws auth setup` or manual download
+    // 2. Saved client_secret.json from `xgc auth setup` or manual download
     let (client_id, client_secret, project_id) = resolve_client_credentials()?;
 
     // Persist credentials to client_secret.json if not already saved,
@@ -613,8 +658,10 @@ async fn handle_login_inner(
         }
     }
 
-    // Ensure config directory exists
-    let config = config_dir();
+    // OAuth's temporary token storage contains account-specific state, so it
+    // belongs to the selected profile even though the OAuth client config and
+    // encryption key remain shared at the config root.
+    let config = profile_config_dir();
     std::fs::create_dir_all(&config)
         .map_err(|e| GwsError::Validation(format!("Failed to create config directory: {e}")))?;
 
@@ -644,12 +691,20 @@ async fn handle_login_inner(
     let enc_path = credential_store::save_encrypted(&creds_str)
         .map_err(|e| GwsError::Auth(format!("Failed to encrypt credentials: {e}")))?;
 
+    // A fresh login must not keep using tokens or account settings from an
+    // earlier login to the same profile.
+    for path in [token_cache_path(), service_account_token_cache_path()] {
+        let _ = std::fs::remove_file(path);
+    }
+    crate::timezone::invalidate_cache();
+
     let output = json!({
         "status": "success",
         "message": "Authentication successful. Encrypted credentials saved.",
+        "profile": active_profile(),
         "account": actual_email.as_deref().unwrap_or("(unknown)"),
         "credentials_file": enc_path.display().to_string(),
-        "encryption": "AES-256-GCM (key in OS keyring or local `.encryption_key`; set GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND=file for headless)",
+        "encryption": "AES-256-GCM (key in OS keyring or local `.encryption_key`; set XGC_KEYRING_BACKEND=file for headless)",
         "scopes": scopes,
     });
     println!(
@@ -684,7 +739,7 @@ async fn handle_export(unmasked: bool) -> Result<(), GwsError> {
     let enc_path = credential_store::encrypted_credentials_path();
     if !enc_path.exists() {
         return Err(GwsError::Auth(
-            "No encrypted credentials found. Run 'gws auth login' first.".to_string(),
+            "No encrypted credentials found. Run 'xgc auth login' first.".to_string(),
         ));
     }
 
@@ -717,8 +772,8 @@ async fn handle_export(unmasked: bool) -> Result<(), GwsError> {
 /// Resolve OAuth client credentials from env vars or saved config file.
 fn resolve_client_credentials() -> Result<(String, String, Option<String>), GwsError> {
     // 1. Try env vars first
-    let env_id = std::env::var("GOOGLE_WORKSPACE_CLI_CLIENT_ID").ok();
-    let env_secret = std::env::var("GOOGLE_WORKSPACE_CLI_CLIENT_SECRET").ok();
+    let env_id = std::env::var("XGC_CLIENT_ID").ok();
+    let env_secret = std::env::var("XGC_CLIENT_SECRET").ok();
 
     if let (Some(id), Some(secret)) = (env_id, env_secret) {
         // Still try to load project_id from config file for the scope picker
@@ -735,17 +790,15 @@ fn resolve_client_credentials() -> Result<(String, String, Option<String>), GwsE
             config.client_secret,
             Some(config.project_id),
         )),
-        Err(_) => Err(GwsError::Auth(
-            format!(
-                "No OAuth client configured.\n\n\
+        Err(_) => Err(GwsError::Auth(format!(
+            "No OAuth client configured.\n\n\
                  Either:\n  \
-                   1. Run `gws auth setup` to configure a GCP project and OAuth client\n  \
+                   1. Run `xgc auth setup` to configure a GCP project and OAuth client\n  \
                    2. Download client_secret.json from Google Cloud Console and save it to:\n     \
                       {}\n  \
-                   3. Set env vars: GOOGLE_WORKSPACE_CLI_CLIENT_ID and GOOGLE_WORKSPACE_CLI_CLIENT_SECRET",
-                crate::oauth_config::client_config_path().display()
-            ),
-        )),
+                   3. Set env vars: XGC_CLIENT_ID and XGC_CLIENT_SECRET",
+            crate::oauth_config::client_config_path().display()
+        ))),
     }
 }
 
@@ -1223,6 +1276,8 @@ async fn handle_status() -> Result<(), GwsError> {
     };
 
     let mut output = json!({
+        "profile": active_profile(),
+        "profile_dir": profile_config_dir().display().to_string(),
         "auth_method": auth_method,
         "storage": storage,
         "keyring_backend": credential_store::active_backend_name(),
@@ -1230,6 +1285,7 @@ async fn handle_status() -> Result<(), GwsError> {
         "encrypted_credentials_exists": has_encrypted,
         "plain_credentials": plain_path.display().to_string(),
         "plain_credentials_exists": has_plain,
+        "token_cache": token_cache.display().to_string(),
         "token_cache_exists": has_token_cache,
     });
 
@@ -1261,7 +1317,7 @@ async fn handle_status() -> Result<(), GwsError> {
     }
 
     // Show credential source by attempting actual resolution
-    let has_token_env = std::env::var("GOOGLE_WORKSPACE_CLI_TOKEN")
+    let has_token_env = std::env::var("XGC_TOKEN")
         .ok()
         .filter(|t| !t.is_empty())
         .is_some();
@@ -1272,8 +1328,8 @@ async fn handle_status() -> Result<(), GwsError> {
     } else {
         match resolve_client_credentials() {
             Ok((_, _, _)) => {
-                let has_env_id = std::env::var("GOOGLE_WORKSPACE_CLI_CLIENT_ID").is_ok();
-                let has_env_secret = std::env::var("GOOGLE_WORKSPACE_CLI_CLIENT_SECRET").is_ok();
+                let has_env_id = std::env::var("XGC_CLIENT_ID").is_ok();
+                let has_env_secret = std::env::var("XGC_CLIENT_SECRET").is_ok();
                 if has_env_id && has_env_secret {
                     "environment_variables"
                 } else {
@@ -1454,16 +1510,11 @@ async fn handle_status() -> Result<(), GwsError> {
 }
 
 fn handle_logout() -> Result<(), GwsError> {
-    let plain_path = plain_credentials_path();
-    let enc_path = credential_store::encrypted_credentials_path();
-    let token_cache = token_cache_path();
-    let sa_token_cache = config_dir().join("sa_token_cache.json");
-
     let mut removed = Vec::new();
 
-    for path in [&enc_path, &plain_path, &token_cache, &sa_token_cache] {
+    for path in logout_paths() {
         if path.exists() {
-            std::fs::remove_file(path).map_err(|e| {
+            std::fs::remove_file(&path).map_err(|e| {
                 GwsError::Validation(format!("Failed to remove {}: {e}", path.display()))
             })?;
             removed.push(path.display().to_string());
@@ -1476,11 +1527,13 @@ fn handle_logout() -> Result<(), GwsError> {
     let output = if removed.is_empty() {
         json!({
             "status": "success",
+            "profile": active_profile(),
             "message": "No credentials found to remove.",
         })
     } else {
         json!({
             "status": "success",
+            "profile": active_profile(),
             "message": "Logged out. All credentials and token caches removed.",
             "removed": removed,
         })
@@ -1491,6 +1544,23 @@ fn handle_logout() -> Result<(), GwsError> {
         serde_json::to_string_pretty(&output).unwrap_or_default()
     );
     Ok(())
+}
+
+fn logout_paths() -> Vec<PathBuf> {
+    let mut paths = vec![
+        credential_store::encrypted_credentials_path(),
+        token_cache_path(),
+        service_account_token_cache_path(),
+        oauth_temp_credentials_path(),
+    ];
+
+    // An explicit credentials path is caller-owned and may be a service-account
+    // key or another reusable secret. Logout only removes xgc-managed files.
+    if std::env::var_os("XGC_CREDENTIALS_FILE").is_none() {
+        paths.push(plain_credentials_path());
+    }
+
+    paths
 }
 
 /// Extract refresh_token from yup-oauth2 v12 token cache.
@@ -1795,13 +1865,13 @@ mod tests {
     #[serial_test::serial]
     fn resolve_client_credentials_from_env_vars() {
         unsafe {
-            std::env::set_var("GOOGLE_WORKSPACE_CLI_CLIENT_ID", "test-id");
-            std::env::set_var("GOOGLE_WORKSPACE_CLI_CLIENT_SECRET", "test-secret");
+            std::env::set_var("XGC_CLIENT_ID", "test-id");
+            std::env::set_var("XGC_CLIENT_SECRET", "test-secret");
         }
         let result = resolve_client_credentials();
         unsafe {
-            std::env::remove_var("GOOGLE_WORKSPACE_CLI_CLIENT_ID");
-            std::env::remove_var("GOOGLE_WORKSPACE_CLI_CLIENT_SECRET");
+            std::env::remove_var("XGC_CLIENT_ID");
+            std::env::remove_var("XGC_CLIENT_SECRET");
         }
         let (id, secret, _project_id) = result.unwrap();
         assert_eq!(id, "test-id");
@@ -1813,8 +1883,8 @@ mod tests {
     #[serial_test::serial]
     fn resolve_client_credentials_missing_env_vars_uses_config() {
         unsafe {
-            std::env::remove_var("GOOGLE_WORKSPACE_CLI_CLIENT_ID");
-            std::env::remove_var("GOOGLE_WORKSPACE_CLI_CLIENT_SECRET");
+            std::env::remove_var("XGC_CLIENT_ID");
+            std::env::remove_var("XGC_CLIENT_SECRET");
         }
         // Result depends on whether client_secret.json exists on the machine
         let result = resolve_client_credentials();
@@ -1832,36 +1902,36 @@ mod tests {
 
     #[test]
     #[serial_test::serial]
-    fn config_dir_returns_gws_subdir() {
+    fn config_dir_returns_xgc_subdir() {
         let path = config_dir();
-        assert!(path.ends_with("gws"));
+        assert!(path.ends_with("xgc"));
     }
 
     #[test]
     fn config_dir_primary_uses_dot_config() {
-        // The primary (non-test) path should be ~/.config/gws.
+        // The primary (non-test) path should be ~/.config/xgc.
         // We can't easily test the real function without env override,
-        // but we verify the building blocks: home_dir + .config + gws.
-        let primary = dirs::home_dir().unwrap().join(".config").join("gws");
-        assert!(primary.ends_with(".config/gws") || primary.ends_with(r".config\gws"));
+        // but we verify the building blocks: home_dir + .config + xgc.
+        let primary = dirs::home_dir().unwrap().join(".config").join("xgc");
+        assert!(primary.ends_with(".config/xgc") || primary.ends_with(r".config\xgc"));
     }
 
     #[test]
     #[serial_test::serial]
     fn config_dir_fallback_to_legacy() {
-        // When GOOGLE_WORKSPACE_CLI_CONFIG_DIR points to a legacy-style dir,
+        // When XGC_CONFIG_DIR points to a legacy-style dir,
         // config_dir() should return it (simulating the test env override).
         let dir = tempfile::tempdir().unwrap();
         let legacy = dir.path().join("legacy_gws");
         std::fs::create_dir_all(&legacy).unwrap();
 
         unsafe {
-            std::env::set_var("GOOGLE_WORKSPACE_CLI_CONFIG_DIR", legacy.to_str().unwrap());
+            std::env::set_var("XGC_CONFIG_DIR", legacy.to_str().unwrap());
         }
         let path = config_dir();
         assert_eq!(path, legacy);
         unsafe {
-            std::env::remove_var("GOOGLE_WORKSPACE_CLI_CONFIG_DIR");
+            std::env::remove_var("XGC_CONFIG_DIR");
         }
     }
 
@@ -1870,7 +1940,7 @@ mod tests {
     fn plain_credentials_path_defaults_to_config_dir() {
         // Without env var, should be in config dir
         unsafe {
-            std::env::remove_var("GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE");
+            std::env::remove_var("XGC_CREDENTIALS_FILE");
         }
         let path = plain_credentials_path();
         assert!(path.ends_with("credentials.json"));
@@ -1881,16 +1951,29 @@ mod tests {
     #[serial_test::serial]
     fn plain_credentials_path_respects_env_var() {
         unsafe {
-            std::env::set_var(
-                "GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE",
-                "/tmp/test-creds.json",
-            );
+            std::env::set_var("XGC_CREDENTIALS_FILE", "/tmp/test-creds.json");
         }
         let path = plain_credentials_path();
         assert_eq!(path, PathBuf::from("/tmp/test-creds.json"));
         unsafe {
-            std::env::remove_var("GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE");
+            std::env::remove_var("XGC_CREDENTIALS_FILE");
         }
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn logout_does_not_remove_caller_owned_credentials_file() {
+        let external = PathBuf::from("/tmp/xgc-external-credentials.json");
+        unsafe {
+            std::env::set_var("XGC_CREDENTIALS_FILE", &external);
+        }
+
+        assert!(!logout_paths().contains(&external));
+
+        unsafe {
+            std::env::remove_var("XGC_CREDENTIALS_FILE");
+        }
+        assert!(logout_paths().contains(&plain_credentials_path()));
     }
 
     #[test]
@@ -1898,6 +1981,61 @@ mod tests {
         let path = token_cache_path();
         assert!(path.ends_with("token_cache.json"));
         assert!(path.starts_with(config_dir()));
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn profile_paths_are_isolated_and_default_stays_at_root() {
+        let config_root = tempfile::tempdir().unwrap();
+        unsafe { std::env::set_var("XGC_CONFIG_DIR", config_root.path()) };
+
+        let default_dir = profile_config_dir_for(DEFAULT_PROFILE);
+        let personal_dir = profile_config_dir_for("personal");
+        let school_dir = profile_config_dir_for("school");
+
+        assert_eq!(default_dir, config_root.path());
+        assert_eq!(personal_dir, config_root.path().join("profiles/personal"));
+        assert_eq!(school_dir, config_root.path().join("profiles/school"));
+        assert_ne!(
+            personal_dir.join("credentials.enc"),
+            school_dir.join("credentials.enc")
+        );
+        assert_ne!(
+            personal_dir.join("token_cache.json"),
+            school_dir.join("token_cache.json")
+        );
+        assert_ne!(
+            personal_dir.join("credentials.tmp"),
+            school_dir.join("credentials.tmp")
+        );
+        assert_eq!(
+            default_dir.join("credentials.enc"),
+            config_root.path().join("credentials.enc")
+        );
+        assert_eq!(
+            default_dir.join("token_cache.json"),
+            config_root.path().join("token_cache.json")
+        );
+
+        unsafe { std::env::remove_var("XGC_CONFIG_DIR") };
+    }
+
+    #[test]
+    fn validate_profile_names_rejects_unsafe_values() {
+        for valid in ["personal", "school-2", "work_account", "_private"] {
+            assert!(validate_profile_name(valid).is_ok(), "{valid}");
+        }
+        for invalid in [
+            "",
+            "../work",
+            "work/profile",
+            "work.profile",
+            "--help",
+            "a b",
+            "é",
+        ] {
+            assert!(validate_profile_name(invalid).is_err(), "{invalid}");
+        }
     }
 
     #[tokio::test]
@@ -1937,8 +2075,8 @@ mod tests {
     #[serial_test::serial]
     fn resolve_credentials_fails_without_env_vars_or_config() {
         unsafe {
-            std::env::remove_var("GOOGLE_WORKSPACE_CLI_CLIENT_ID");
-            std::env::remove_var("GOOGLE_WORKSPACE_CLI_CLIENT_SECRET");
+            std::env::remove_var("XGC_CLIENT_ID");
+            std::env::remove_var("XGC_CLIENT_SECRET");
         }
         // When no env vars AND no client_secret.json on disk, should fail
         let result = resolve_client_credentials();
@@ -1957,16 +2095,16 @@ mod tests {
     #[serial_test::serial]
     fn resolve_credentials_uses_env_vars_when_present() {
         unsafe {
-            std::env::set_var("GOOGLE_WORKSPACE_CLI_CLIENT_ID", "test-id");
-            std::env::set_var("GOOGLE_WORKSPACE_CLI_CLIENT_SECRET", "test-secret");
+            std::env::set_var("XGC_CLIENT_ID", "test-id");
+            std::env::set_var("XGC_CLIENT_SECRET", "test-secret");
         }
 
         let result = resolve_client_credentials();
 
         // Clean up immediately
         unsafe {
-            std::env::remove_var("GOOGLE_WORKSPACE_CLI_CLIENT_ID");
-            std::env::remove_var("GOOGLE_WORKSPACE_CLI_CLIENT_SECRET");
+            std::env::remove_var("XGC_CLIENT_ID");
+            std::env::remove_var("XGC_CLIENT_SECRET");
         }
 
         let (id, secret, _) = result.unwrap();

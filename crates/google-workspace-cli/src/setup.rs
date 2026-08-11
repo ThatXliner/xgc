@@ -377,7 +377,7 @@ pub struct SetupOptions {
     pub login: bool,
 }
 
-/// Build the clap Command for `gws auth setup`.
+/// Build the clap Command for `xgc auth setup`.
 fn setup_command() -> clap::Command {
     clap::Command::new("setup")
         .about("Configure GCP project + OAuth client (requires gcloud)")
@@ -390,7 +390,7 @@ fn setup_command() -> clap::Command {
         .arg(
             clap::Arg::new("login")
                 .long("login")
-                .help("Run `gws auth login` after successful setup")
+                .help("Run `xgc auth login` after successful setup")
                 .action(clap::ArgAction::SetTrue),
         )
         .arg(
@@ -693,7 +693,7 @@ fn format_project_create_failure(project_id: &str, account: &str, gcloud_output:
                 "Fix:\n",
                 "1. Verify the active account: `gcloud auth list` and `gcloud config get-value account`\n",
                 "2. Sign in to https://console.cloud.google.com/ with that same account and accept Terms of Service.\n",
-                "3. Retry `gws auth setup` (or `gcloud projects create {project_id}`).\n\n",
+                "3. Retry `xgc auth setup` (or `gcloud projects create {project_id}`).\n\n",
                 "If this is a Google Workspace-managed account, an org admin may need to enable Google Cloud for the domain first."
             ),
             project_id = project_id
@@ -1119,7 +1119,7 @@ fn stage_project(ctx: &mut SetupContext) -> Result<SetupStage, GwsError> {
         let mut items: Vec<SelectItem> = vec![
             SelectItem {
                 label: "➕ Create new project".to_string(),
-                description: "Create a new GCP project for gws".to_string(),
+                description: "Create a new GCP project for xgc".to_string(),
                 selected: false,
                 is_fixed: false,
                 is_template: false,
@@ -1365,7 +1365,7 @@ async fn stage_enable_apis(ctx: &mut SetupContext) -> Result<SetupStage, GwsErro
         eprintln!();
         let output = json!({
             "status": "dry_run",
-            "message": "No changes were made. Run `gws auth login` to authenticate.",
+            "message": "No changes were made. Run `xgc auth login` to authenticate.",
             "account": ctx.account,
             "project": ctx.project_id,
             "apis_would_enable": ctx.api_ids,
@@ -1416,7 +1416,7 @@ async fn stage_enable_apis(ctx: &mut SetupContext) -> Result<SetupStage, GwsErro
 
 /// Build actionable manual OAuth setup instructions for non-interactive environments.
 ///
-/// Returned as the error message when `gws auth setup` cannot prompt interactively,
+/// Returned as the error message when `xgc auth setup` cannot prompt interactively,
 /// so users get a clear checklist instead of a cryptic "run interactively" error.
 fn manual_oauth_instructions(project_id: &str) -> String {
     let consent_url = if project_id.is_empty() {
@@ -1443,28 +1443,28 @@ fn manual_oauth_instructions(project_id: &str) -> String {
             "1. Configure the OAuth consent screen (if not already done):\n",
             "   {consent_url}\n",
             "   → User Type: External\n",
-            "   → App name: gws CLI (or your preferred name)\n",
+            "   → App name: xgc CLI (or your preferred name)\n",
             "   → Support email: your Google account email\n",
             "   → Save and continue through all screens\n\n",
             "2. Create an OAuth client ID:\n",
             "   {creds_url}\n",
             "   → Click 'Create Credentials' → 'OAuth client ID'\n",
             "   → Application type: Desktop app\n",
-            "   → Name: gws CLI (or your preferred name)\n",
+            "   → Name: xgc CLI (or your preferred name)\n",
             "   → Click 'Create'\n\n",
             "3. Copy the Client ID and Client Secret shown in the dialog.\n\n",
-            "4. Provide the credentials to gws using one of these methods:\n\n",
+            "4. Provide the credentials to xgc using one of these methods:\n\n",
             "   Option A — Environment variables (recommended for CI/scripts):\n",
-            "     export GOOGLE_WORKSPACE_CLI_CLIENT_ID=\"<your-client-id>\"\n",
-            "     export GOOGLE_WORKSPACE_CLI_CLIENT_SECRET=\"<your-client-secret>\"\n",
-            "     gws auth login\n\n",
+            "     export XGC_CLIENT_ID=\"<your-client-id>\"\n",
+            "     export XGC_CLIENT_SECRET=\"<your-client-secret>\"\n",
+            "     xgc auth login\n\n",
             "   Option B — Download the JSON file:\n",
             "     Download 'client_secret_*.json' from the Cloud Console dialog\n",
             "     and save it to: {config_path}\n",
-            "     Then run: gws auth login\n\n",
+            "     Then run: xgc auth login\n\n",
             "   Option C — Re-run setup interactively (recommended for first-time setup):\n",
-            "     gws auth setup\n\n",
-            "Note: The redirect URI used by gws is http://localhost (auto-negotiated port).\n",
+            "     xgc auth setup\n\n",
+            "Note: The redirect URI used by xgc is http://localhost (auto-negotiated port).\n",
             "Desktop app clients do not require you to register a redirect URI manually."
         ),
         consent_url = consent_url,
@@ -1477,7 +1477,7 @@ fn manual_oauth_instructions(project_id: &str) -> String {
 async fn stage_configure_oauth(ctx: &mut SetupContext) -> Result<SetupStage, GwsError> {
     ctx.wiz(4, StepStatus::InProgress("Configuring...".into()));
     let access_token = get_access_token()?;
-    let app_name = "gws CLI";
+    let app_name = "xgc CLI";
     configure_consent_screen(&ctx.project_id, &access_token, app_name, &ctx.account).await?;
 
     ctx.wiz(
@@ -1598,7 +1598,7 @@ fn prompt_login_after_setup() -> Result<bool, GwsError> {
 
     let mut input = String::new();
     loop {
-        eprint!("Run `gws auth login` now? [Y/n]: ");
+        eprint!("Run `xgc auth login` now? [Y/n]: ");
         std::io::stderr()
             .flush()
             .map_err(|e| GwsError::Validation(format!("Failed to flush prompt: {e}")))?;
@@ -1683,9 +1683,9 @@ pub async fn run_setup(args: &[String]) -> Result<(), GwsError> {
     };
 
     let message = if run_login {
-        "Setup complete! Starting `gws auth login`..."
+        "Setup complete! Starting `xgc auth login`..."
     } else {
-        "Setup complete! Run `gws auth login` to authenticate."
+        "Setup complete! Run `xgc auth login` to authenticate."
     };
 
     let output = json!({
@@ -1837,7 +1837,7 @@ mod tests {
                 continue;
             }
             assert!(
-                api_ids.iter().any(|id| *id == expected_suffix),
+                api_ids.contains(&expected_suffix),
                 "Missing API ID for service '{}' (expected {})",
                 entry.api_name,
                 expected_suffix

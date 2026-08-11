@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-`gws` is a Rust CLI tool for interacting with Google Workspace APIs. It dynamically generates its command surface at runtime by parsing Google Discovery Service JSON documents.
+`xgc` is a Rust CLI tool for interacting with Google Workspace APIs. It dynamically generates its command surface at runtime by parsing Google Discovery Service JSON documents.
 
 > [!IMPORTANT]
 > **Dynamic Discovery**: This project does NOT use generated Rust crates (e.g., `google-drive3`) for API interaction. Instead, it fetches the Discovery JSON at runtime and builds `clap` commands dynamically. When adding a new service, you only need to register it in `crates/google-workspace/src/services.rs` and verify the Discovery URL pattern in `crates/google-workspace/src/discovery.rs`. Do NOT add new crates to `Cargo.toml` for standard Google APIs.
@@ -27,7 +27,7 @@ Every PR must include a changeset file. Create one at `.changeset/<descriptive-n
 
 ```markdown
 ---
-"@googleworkspace/cli": patch
+"@thatxliner/xgc": patch
 ---
 
 Brief description of the change
@@ -49,7 +49,7 @@ The repository is a Cargo workspace with two crates:
 | Crate                          | Package                 | Purpose                                           |
 | ------------------------------ | ----------------------- | ------------------------------------------------- |
 | `crates/google-workspace/`     | `google-workspace`      | Publishable library — core types and helpers       |
-| `crates/google-workspace-cli/` | `google-workspace-cli`  | Binary crate — the `gws` CLI                       |
+| `crates/google-workspace-cli/` | `xgc`                   | Binary crate — the `xgc` CLI                       |
 
 #### Library (`crates/google-workspace/src/`)
 
@@ -68,10 +68,10 @@ The repository is a Cargo workspace with two crates:
 | `main.rs`           | Entrypoint, two-phase CLI parsing, method resolution                     |
 | `auth.rs`           | OAuth2 token acquisition via env vars, encrypted credentials, or ADC     |
 | `credential_store.rs` | AES-256-GCM encryption/decryption of credential files                  |
-| `auth_commands.rs`  | `gws auth` subcommands: `login`, `logout`, `setup`, `status`, `export`   |
+| `auth_commands.rs`  | `xgc auth` subcommands: `login`, `logout`, `setup`, `status`, `export`   |
 | `commands.rs`       | Recursive `clap::Command` builder from Discovery resources               |
 | `executor.rs`       | HTTP request construction, response handling, schema validation          |
-| `schema.rs`         | `gws schema` command — introspect API method schemas                     |
+| `schema.rs`         | `xgc schema` command — introspect API method schemas                     |
 | `logging.rs`        | Opt-in structured logging (stderr + file) via `tracing`                  |
 | `timezone.rs`       | Account timezone resolution: `--timezone` flag, Calendar Settings API    |
 
@@ -85,10 +85,10 @@ vhs docs/demo.tape
 
 ### VHS quoting rules
 
-- Use **double quotes** for simple strings: `Type "gws --help" Enter`
+- Use **double quotes** for simple strings: `Type "xgc --help" Enter`
 - Use **backtick quotes** when the typed text contains JSON with double quotes:
   ```
-  Type `gws drive files list --params '{"pageSize":5}'` Enter
+  Type `xgc drive files list --params '{"pageSize":5}'` Enter
   ```
   `\"` escapes inside double-quoted `Type` strings are **not supported** by VHS and will cause parse errors.
 
@@ -102,7 +102,7 @@ ASCII art title cards live in `art/`. The `scripts/show-art.sh` helper clears th
 > This CLI is frequently invoked by AI/LLM agents. Always assume inputs can be adversarial — validate paths against traversal (`../../.ssh`), restrict format strings to allowlists, reject control characters, and encode user values before embedding them in URLs.
 
 > [!NOTE]
-> **Environment variables are trusted inputs.** The validation rules above apply to **CLI arguments** that may be passed by untrusted AI agents. Environment variables (e.g. `GOOGLE_WORKSPACE_CLI_CONFIG_DIR`) are set by the user themselves — in their shell profile, `.env` file, or deployment config — and are not subject to path traversal validation. This is consistent with standard conventions like `XDG_CONFIG_HOME`, `CARGO_HOME`, etc.
+> **Environment variables are trusted inputs.** The validation rules above apply to **CLI arguments** that may be passed by untrusted AI agents. Environment variables (e.g. `XGC_CONFIG_DIR`) are set by the user themselves — in their shell profile, `.env` file, or deployment config — and are not subject to path traversal validation. This is consistent with standard conventions like `XDG_CONFIG_HOME`, `CARGO_HOME`, etc.
 
 ### Path Safety (`crates/google-workspace/src/validate.rs`)
 
@@ -197,43 +197,44 @@ See [`src/helpers/README.md`](crates/google-workspace-cli/src/helpers/README.md)
 
 | Variable | Description |
 |---|---|
-| `GOOGLE_WORKSPACE_CLI_TOKEN` | Pre-obtained OAuth2 access token (highest priority; bypasses all credential file loading) |
-| `GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE` | Path to OAuth credentials JSON (no default; if unset, falls back to encrypted credentials in `~/.config/gws/`) |
-| `GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND` | Keyring backend: `keyring` (default, uses OS keyring with file fallback) or `file` (file only, for Docker/CI/headless) |
+| `XGC_TOKEN` | Pre-obtained OAuth2 access token (highest priority; bypasses all credential file loading) |
+| `XGC_CREDENTIALS_FILE` | Path to OAuth credentials JSON (no default; if unset, falls back to encrypted credentials in `~/.config/xgc/`) |
+| `XGC_KEYRING_BACKEND` | Keyring backend: `keyring` (default, uses OS keyring with file fallback) or `file` (file only, for Docker/CI/headless) |
+| `XGC_PROFILE` | Named auth profile (default: `default`; overridden by `--profile`) |
 
-| `GOOGLE_APPLICATION_CREDENTIALS` | Standard Google ADC path; used as fallback when no gws-specific credentials are configured |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Standard Google ADC path; used as fallback when no xgc-specific credentials are configured |
 
 ### Configuration
 
 | Variable | Description |
 |---|---|
-| `GOOGLE_WORKSPACE_CLI_CONFIG_DIR` | Override the config directory (default: `~/.config/gws`) |
+| `XGC_CONFIG_DIR` | Override the config directory (default: `~/.config/xgc`) |
 
 ### OAuth Client
 
 | Variable | Description |
 |---|---|
-| `GOOGLE_WORKSPACE_CLI_CLIENT_ID` | OAuth client ID (for `gws auth login` when no `client_secret.json` is saved) |
-| `GOOGLE_WORKSPACE_CLI_CLIENT_SECRET` | OAuth client secret (paired with `CLIENT_ID` above) |
+| `XGC_CLIENT_ID` | OAuth client ID (for `xgc auth login` when no `client_secret.json` is saved) |
+| `XGC_CLIENT_SECRET` | OAuth client secret (paired with `CLIENT_ID` above) |
 
 ### Sanitization (Model Armor)
 
 | Variable | Description |
 |---|---|
-| `GOOGLE_WORKSPACE_CLI_SANITIZE_TEMPLATE` | Default Model Armor template (overridden by `--sanitize` flag) |
-| `GOOGLE_WORKSPACE_CLI_SANITIZE_MODE` | `warn` (default) or `block` |
+| `XGC_SANITIZE_TEMPLATE` | Default Model Armor template (overridden by `--sanitize` flag) |
+| `XGC_SANITIZE_MODE` | `warn` (default) or `block` |
 
 ### Helpers
 
 | Variable | Description |
 |---|---|
-| `GOOGLE_WORKSPACE_PROJECT_ID` | GCP project ID override for quota/billing and fallback for helper commands (overridden by `--project` flag) |
+| `XGC_PROJECT_ID` | GCP project ID override for quota/billing and fallback for helper commands (overridden by `--project` flag) |
 
 ### Logging
 
 | Variable | Description |
 |---|---|
-| `GOOGLE_WORKSPACE_CLI_LOG` | Log level filter for stderr output (e.g., `gws=debug`). Off by default. |
-| `GOOGLE_WORKSPACE_CLI_LOG_FILE` | Directory for JSON-line log files with daily rotation. Off by default. |
+| `XGC_LOG` | Log level filter for stderr output (e.g., `xgc=debug`). Off by default. |
+| `XGC_LOG_FILE` | Directory for JSON-line log files with daily rotation. Off by default. |
 
 All variables can also live in a `.env` file (loaded via `dotenvy`).

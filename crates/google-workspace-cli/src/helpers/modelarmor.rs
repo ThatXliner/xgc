@@ -125,8 +125,8 @@ impl Helper for ModelArmorHelper {
                 )
                 .after_help("\
 EXAMPLES:
-  gws modelarmor +sanitize-prompt --template projects/P/locations/L/templates/T --text 'user input'
-  echo 'prompt' | gws modelarmor +sanitize-prompt --template ...
+  xgc modelarmor +sanitize-prompt --template projects/P/locations/L/templates/T --text 'user input'
+  echo 'prompt' | xgc modelarmor +sanitize-prompt --template ...
 
 TIPS:
   If neither --text nor --json is given, reads from stdin.
@@ -157,8 +157,8 @@ TIPS:
                 )
                 .after_help("\
 EXAMPLES:
-  gws modelarmor +sanitize-response --template projects/P/locations/L/templates/T --text 'model output'
-  model_cmd | gws modelarmor +sanitize-response --template ...
+  xgc modelarmor +sanitize-response --template projects/P/locations/L/templates/T --text 'model output'
+  model_cmd | xgc modelarmor +sanitize-response --template ...
 
 TIPS:
   Use for outbound safety (model -> user).
@@ -204,8 +204,8 @@ TIPS:
                 )
                 .after_help("\
 EXAMPLES:
-  gws modelarmor +create-template --project P --location us-central1 --template-id my-tmpl --preset jailbreak
-  gws modelarmor +create-template --project P --location us-central1 --template-id my-tmpl --json '{...}'
+  xgc modelarmor +create-template --project P --location us-central1 --template-id my-tmpl --preset jailbreak
+  xgc modelarmor +create-template --project P --location us-central1 --template-id my-tmpl --json '{...}'
 
 TIPS:
   Defaults to the jailbreak preset if neither --preset nor --json is given.

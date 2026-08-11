@@ -8,20 +8,19 @@ metadata:
     domain: "engineering"
     requires:
       bins:
-        - gws
+        - xgc
       skills:
-        - gws-events
+        - xgc-events
 ---
 
 # Watch for Drive Changes
 
-> **PREREQUISITE:** Load the following skills to execute this recipe: `gws-events`
+> **PREREQUISITE:** Load the following skills to execute this recipe: `xgc-events`
 
 Subscribe to change notifications on a Google Drive file or folder.
 
 ## Steps
 
-1. Create subscription: `gws events subscriptions create --json '{"targetResource": "//drive.googleapis.com/drives/DRIVE_ID", "eventTypes": ["google.workspace.drive.file.v1.updated"], "notificationEndpoint": {"pubsubTopic": "projects/PROJECT/topics/TOPIC"}, "payloadOptions": {"includeResource": true}}'`
-2. List active subscriptions: `gws events subscriptions list`
-3. Renew before expiry: `gws events +renew --subscription SUBSCRIPTION_ID`
-
+1. Create subscription: `xgc events subscriptions create --json '{"targetResource": "//drive.googleapis.com/drives/DRIVE_ID", "eventTypes": ["google.workspace.drive.file.v1.updated"], "notificationEndpoint": {"pubsubTopic": "projects/PROJECT/topics/TOPIC"}, "payloadOptions": {"includeResource": true}}'`
+2. List active subscriptions: `xgc events subscriptions list`
+3. Renew before expiry: `xgc events +renew --subscription SUBSCRIPTION_ID`

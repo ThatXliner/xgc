@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Google Workspace CLI (gws)
+//! xliner’s GWS-CLI (xgc)
 //!
 //! A dynamic, schema-driven CLI for Google Workspace APIs.
 //! This tool dynamically parses Google API Discovery Documents to construct CLI commands.
@@ -61,40 +61,20 @@ async fn main() {
 
 async fn run() -> Result<(), GwsError> {
     let args: Vec<String> = std::env::args().collect();
+    auth_commands::set_active_profile(extract_profile_arg(&args)?)?;
 
     if args.len() < 2 {
         print_usage();
         return Err(GwsError::Validation(
-            "No service specified. Usage: gws <service> <resource> [sub-resource] <method> [flags]"
+            "No service specified. Usage: xgc <service> <resource> [sub-resource] <method> [flags]"
                 .to_string(),
         ));
     }
 
-    // Find the first non-flag arg (skip --api-version and its value)
-    let mut first_arg: Option<String> = None;
-    {
-        let mut skip_next = false;
-        for a in args.iter().skip(1) {
-            if skip_next {
-                skip_next = false;
-                continue;
-            }
-            if a == "--api-version" {
-                skip_next = true;
-                continue;
-            }
-            if a.starts_with("--api-version=") {
-                continue;
-            }
-            if !a.starts_with("--") || a.as_str() == "--help" || a.as_str() == "--version" {
-                first_arg = Some(a.clone());
-                break;
-            }
-        }
-    }
-    let first_arg = first_arg.ok_or_else(|| {
+    // Find the first non-flag arg, skipping top-level flags and their values.
+    let (first_arg, first_arg_index) = find_first_command_arg(&args).ok_or_else(|| {
         GwsError::Validation(
-            "No service specified. Usage: gws <service> <resource> [sub-resource] <method> [flags]"
+            "No service specified. Usage: xgc <service> <resource> [sub-resource] <method> [flags]"
                 .to_string(),
         )
     })?;
@@ -106,35 +86,41 @@ async fn run() -> Result<(), GwsError> {
     }
 
     if is_version_flag(&first_arg) {
-        println!("gws {}", env!("CARGO_PKG_VERSION"));
-        println!("This is not an officially supported Google product.");
+        println!("xgc {} — xliner’s GWS-CLI", env!("CARGO_PKG_VERSION"));
+        println!("An independently maintained fork; not the official Google distribution.");
         return Ok(());
     }
 
     // Handle the `schema` command
     if first_arg == "schema" {
-        if args.len() < 3 {
+        let schema_args = strip_global_flags(&args[first_arg_index + 1..]);
+        if schema_args.is_empty() {
             return Err(GwsError::Validation(
-                "Usage: gws schema <service.resource.method> (e.g., gws schema drive.files.list) [--resolve-refs]"
+                "Usage: xgc schema <service.resource.method> (e.g., xgc schema drive.files.list) [--resolve-refs]"
                     .to_string(),
             ));
         }
-        let resolve_refs = args.iter().any(|arg| arg == "--resolve-refs");
-        // Remove the flag if it exists so it doesn't mess up path parsing, or just pass the path
-        // The path is args[2], flags might follow.
-        let path = &args[2];
+        let resolve_refs = schema_args.iter().any(|arg| arg == "--resolve-refs");
+        let path = schema_args
+            .iter()
+            .find(|arg| arg.as_str() != "--resolve-refs")
+            .ok_or_else(|| {
+                GwsError::Validation(
+                    "Usage: xgc schema <service.resource.method> [--resolve-refs]".to_string(),
+                )
+            })?;
         return schema::handle_schema_command(path, resolve_refs).await;
     }
 
     // Handle the `generate-skills` command
     if first_arg == "generate-skills" {
-        let gen_args: Vec<String> = args.iter().skip(2).cloned().collect();
+        let gen_args = strip_global_flags(&args[first_arg_index + 1..]);
         return generate_skills::handle_generate_skills(&gen_args).await;
     }
 
     // Handle the `auth` command
     if first_arg == "auth" {
-        let auth_args: Vec<String> = args.iter().skip(2).cloned().collect();
+        let auth_args = strip_global_flags(&args[first_arg_index + 1..]);
         return auth_commands::handle_auth_command(&auth_args).await;
     }
 
@@ -160,7 +146,7 @@ async fn run() -> Result<(), GwsError> {
 
     // Re-parse args (skip argv[0] which is the binary, and argv[1] which is the service name)
     // Filter out --api-version and its value
-    // Prepend "gws" as the program name since try_get_matches_from expects argv[0]
+    // Prepend "xgc" as the program name since try_get_matches_from expects argv[0]
     let sub_args = filter_args_for_subcommand(&args, &first_arg);
 
     let matches = cli.try_get_matches_from(&sub_args).map_err(|e| {
@@ -192,9 +178,9 @@ async fn run() -> Result<(), GwsError> {
     let sanitize_template = matches
         .get_one::<String>("sanitize")
         .cloned()
-        .or_else(|| std::env::var("GOOGLE_WORKSPACE_CLI_SANITIZE_TEMPLATE").ok());
+        .or_else(|| std::env::var("XGC_SANITIZE_TEMPLATE").ok());
 
-    let sanitize_mode = std::env::var("GOOGLE_WORKSPACE_CLI_SANITIZE_MODE")
+    let sanitize_mode = std::env::var("XGC_SANITIZE_MODE")
         .map(|v| helpers::modelarmor::SanitizeMode::from_str(&v))
         .unwrap_or(helpers::modelarmor::SanitizeMode::Warn);
 
@@ -318,6 +304,74 @@ fn parse_pagination_config(matches: &clap::ArgMatches) -> executor::PaginationCo
     }
 }
 
+fn is_global_value_flag(arg: &str) -> bool {
+    matches!(arg, "--api-version" | "--profile")
+}
+
+fn is_global_equals_flag(arg: &str) -> bool {
+    arg.starts_with("--api-version=") || arg.starts_with("--profile=")
+}
+
+fn find_first_command_arg(args: &[String]) -> Option<(String, usize)> {
+    let mut skip_next = false;
+    for (idx, arg) in args.iter().enumerate().skip(1) {
+        if skip_next {
+            skip_next = false;
+            continue;
+        }
+        if is_global_value_flag(arg) {
+            skip_next = true;
+            continue;
+        }
+        if is_global_equals_flag(arg) {
+            continue;
+        }
+        if !arg.starts_with("--") || is_help_flag(arg) || is_version_flag(arg) {
+            return Some((arg.clone(), idx));
+        }
+    }
+    None
+}
+
+fn strip_global_flags(args: &[String]) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut skip_next = false;
+    for arg in args {
+        if skip_next {
+            skip_next = false;
+            continue;
+        }
+        if is_global_value_flag(arg) {
+            skip_next = true;
+            continue;
+        }
+        if is_global_equals_flag(arg) {
+            continue;
+        }
+        out.push(arg.clone());
+    }
+    out
+}
+
+fn extract_profile_arg(args: &[String]) -> Result<String, GwsError> {
+    let mut profile = std::env::var("XGC_PROFILE").ok();
+    let mut iter = args.iter().skip(1);
+    while let Some(arg) = iter.next() {
+        if arg == "--profile" {
+            let value = iter.next().ok_or_else(|| {
+                GwsError::Validation("--profile requires a profile name".to_string())
+            })?;
+            profile = Some(value.clone());
+        } else if let Some(value) = arg.strip_prefix("--profile=") {
+            profile = Some(value.to_string());
+        }
+    }
+
+    let profile = profile.unwrap_or_else(|| auth_commands::DEFAULT_PROFILE.to_string());
+    auth_commands::validate_profile_name(&profile)?;
+    Ok(profile)
+}
+
 pub fn parse_service_and_version(
     args: &[String],
     first_arg: &str,
@@ -346,7 +400,7 @@ pub fn parse_service_and_version(
 }
 
 pub fn filter_args_for_subcommand(args: &[String], service_name: &str) -> Vec<String> {
-    let mut sub_args: Vec<String> = vec!["gws".to_string()];
+    let mut sub_args: Vec<String> = vec!["xgc".to_string()];
     let mut skip_next = false;
     let mut service_skipped = false;
     for arg in args.iter().skip(1) {
@@ -354,11 +408,11 @@ pub fn filter_args_for_subcommand(args: &[String], service_name: &str) -> Vec<St
             skip_next = false;
             continue;
         }
-        if arg == "--api-version" {
+        if is_global_value_flag(arg) {
             skip_next = true;
             continue;
         }
-        if arg.starts_with("--api-version=") {
+        if is_global_equals_flag(arg) {
             continue;
         }
         if !service_skipped && arg == service_name {
@@ -438,18 +492,18 @@ fn resolve_method_from_matches<'a>(
 }
 
 fn print_usage() {
-    println!("gws — Google Workspace CLI");
+    println!("xgc — xliner’s GWS-CLI");
     println!();
     println!("USAGE:");
-    println!("    gws <service> <resource> [sub-resource] <method> [flags]");
-    println!("    gws schema <service.resource.method> [--resolve-refs]");
+    println!("    xgc <service> <resource> [sub-resource] <method> [flags]");
+    println!("    xgc schema <service.resource.method> [--resolve-refs]");
     println!();
     println!("EXAMPLES:");
-    println!("    gws drive files list --params '{{\"pageSize\": 10}}'");
-    println!("    gws drive files get --params '{{\"fileId\": \"abc123\"}}'");
-    println!("    gws sheets spreadsheets get --params '{{\"spreadsheetId\": \"...\"}}'");
-    println!("    gws gmail users messages list --params '{{\"userId\": \"me\"}}'");
-    println!("    gws schema drive.files.list");
+    println!("    xgc drive files list --params '{{\"pageSize\": 10}}'");
+    println!("    xgc drive files get --params '{{\"fileId\": \"abc123\"}}'");
+    println!("    xgc sheets spreadsheets get --params '{{\"spreadsheetId\": \"...\"}}'");
+    println!("    xgc gmail users messages list --params '{{\"userId\": \"me\"}}'");
+    println!("    xgc schema drive.files.list");
     println!();
     println!("FLAGS:");
     println!("    --params <JSON>       URL/Query parameters as JSON");
@@ -459,6 +513,7 @@ fn print_usage() {
     println!("    --output <PATH>       Output file path for binary responses");
     println!("    --format <FMT>        Output format: json (default), table, yaml, csv");
     println!("    --api-version <VER>   Override the API version (e.g., v2, v3)");
+    println!("    --profile <PROFILE>   Use a named auth profile (default: default)");
     println!("    --page-all            Auto-paginate, one JSON line per page (NDJSON)");
     println!("    --page-limit <N>      Max pages to fetch with --page-all (default: 10)");
     println!("    --page-delay <MS>     Delay between pages in ms (default: 100)");
@@ -475,29 +530,18 @@ fn print_usage() {
     }
     println!();
     println!("ENVIRONMENT:");
-    println!("    GOOGLE_WORKSPACE_CLI_TOKEN               Pre-obtained OAuth2 access token (highest priority)");
-    println!("    GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE    Path to OAuth credentials JSON file");
-    println!("    GOOGLE_WORKSPACE_CLI_CLIENT_ID           OAuth client ID (for gws auth login)");
-    println!(
-        "    GOOGLE_WORKSPACE_CLI_CLIENT_SECRET       OAuth client secret (for gws auth login)"
-    );
-    println!(
-        "    GOOGLE_WORKSPACE_CLI_CONFIG_DIR          Override config directory (default: ~/.config/gws)"
-    );
-    println!(
-        "    GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND     Keyring backend: keyring (default) or file"
-    );
-    println!("    GOOGLE_WORKSPACE_CLI_SANITIZE_TEMPLATE   Default Model Armor template");
-    println!(
-        "    GOOGLE_WORKSPACE_CLI_SANITIZE_MODE       Sanitization mode: warn (default) or block"
-    );
-    println!(
-        "    GOOGLE_WORKSPACE_PROJECT_ID              Override the GCP project ID for quota and billing"
-    );
-    println!("    GOOGLE_WORKSPACE_CLI_LOG                 Log level for stderr (e.g., gws=debug)");
-    println!(
-        "    GOOGLE_WORKSPACE_CLI_LOG_FILE            Directory for JSON log files (daily rotation)"
-    );
+    println!("    XGC_TOKEN               Pre-obtained OAuth2 access token (highest priority)");
+    println!("    XGC_CREDENTIALS_FILE    Path to OAuth credentials JSON file");
+    println!("    XGC_PROFILE             Named auth profile (default: default)");
+    println!("    XGC_CLIENT_ID           OAuth client ID (for xgc auth login)");
+    println!("    XGC_CLIENT_SECRET       OAuth client secret (for xgc auth login)");
+    println!("    XGC_CONFIG_DIR          Override config directory (default: ~/.config/xgc)");
+    println!("    XGC_KEYRING_BACKEND     Keyring backend: keyring (default) or file");
+    println!("    XGC_SANITIZE_TEMPLATE   Default Model Armor template");
+    println!("    XGC_SANITIZE_MODE       Sanitization mode: warn (default) or block");
+    println!("    XGC_PROJECT_ID              Override the GCP project ID for quota and billing");
+    println!("    XGC_LOG                 Log level for stderr (e.g., xgc=debug)");
+    println!("    XGC_LOG_FILE            Directory for JSON log files (daily rotation)");
     println!();
     println!("EXIT CODES:");
     for (code, description) in crate::error::EXIT_CODE_DOCUMENTATION {
@@ -505,12 +549,12 @@ fn print_usage() {
     }
     println!();
     println!("COMMUNITY:");
-    println!("    Star the repo: https://github.com/googleworkspace/cli");
-    println!("    Report bugs / request features: https://github.com/googleworkspace/cli/issues");
+    println!("    Star the repo: https://github.com/ThatXliner/xgc");
+    println!("    Report bugs / request features: https://github.com/ThatXliner/xgc/issues");
     println!("    Please search existing issues first; if one already exists, comment there.");
     println!();
     println!("DISCLAIMER:");
-    println!("    This is not an officially supported Google product.");
+    println!("    xliner’s GWS-CLI is an independently maintained fork, not the official Google distribution.");
 }
 
 fn is_help_flag(arg: &str) -> bool {
@@ -546,7 +590,7 @@ mod tests {
             .get_matches_from(vec!["test"]);
 
         let config = parse_pagination_config(&matches);
-        assert_eq!(config.page_all, false);
+        assert!(!config.page_all);
         assert_eq!(config.page_limit, 10);
         assert_eq!(config.page_delay_ms, 100);
     }
@@ -579,7 +623,7 @@ mod tests {
             ]);
 
         let config = parse_pagination_config(&matches);
-        assert_eq!(config.page_all, true);
+        assert!(config.page_all);
         assert_eq!(config.page_limit, 20);
         assert_eq!(config.page_delay_ms, 500);
     }
@@ -641,10 +685,10 @@ mod tests {
         };
 
         // Simulate CLI structure
-        let cmd = clap::Command::new("gws")
+        let cmd = clap::Command::new("xgc")
             .subcommand(clap::Command::new("files").subcommand(clap::Command::new("list")));
 
-        let matches = cmd.get_matches_from(vec!["gws", "files", "list"]);
+        let matches = cmd.get_matches_from(vec!["xgc", "files", "list"]);
         let (method, _) = resolve_method_from_matches(&doc, &matches).unwrap();
         assert_eq!(method.id.as_deref(), Some("drive.files.list"));
     }
@@ -673,11 +717,11 @@ mod tests {
         };
 
         let cmd =
-            clap::Command::new("gws").subcommand(clap::Command::new("files").subcommand(
+            clap::Command::new("xgc").subcommand(clap::Command::new("files").subcommand(
                 clap::Command::new("permissions").subcommand(clap::Command::new("get")),
             ));
 
-        let matches = cmd.get_matches_from(vec!["gws", "files", "permissions", "get"]);
+        let matches = cmd.get_matches_from(vec!["xgc", "files", "permissions", "get"]);
         let (method, _) = resolve_method_from_matches(&doc, &matches).unwrap();
         assert_eq!(method.id.as_deref(), Some("drive.files.permissions.get"));
     }
@@ -685,7 +729,7 @@ mod tests {
     #[test]
     fn test_filter_args_strips_api_version() {
         let args: Vec<String> = vec![
-            "gws".into(),
+            "xgc".into(),
             "drive".into(),
             "--api-version".into(),
             "v3".into(),
@@ -693,13 +737,83 @@ mod tests {
             "list".into(),
         ];
         let filtered = filter_args_for_subcommand(&args, "drive");
-        assert_eq!(filtered, vec!["gws", "files", "list"]);
+        assert_eq!(filtered, vec!["xgc", "files", "list"]);
+    }
+
+    #[test]
+    fn test_filter_args_strips_profile() {
+        let args = vec![
+            "xgc".into(),
+            "--profile".into(),
+            "personal".into(),
+            "drive".into(),
+            "files".into(),
+            "list".into(),
+        ];
+        assert_eq!(
+            filter_args_for_subcommand(&args, "drive"),
+            vec!["xgc", "files", "list"]
+        );
+    }
+
+    #[test]
+    fn test_first_command_skips_profile() {
+        let args = vec![
+            "xgc".into(),
+            "--profile=personal".into(),
+            "auth".into(),
+            "status".into(),
+        ];
+        assert_eq!(find_first_command_arg(&args), Some(("auth".into(), 2)));
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_profile_defaults_when_unspecified() {
+        unsafe { std::env::remove_var("XGC_PROFILE") };
+        assert_eq!(
+            extract_profile_arg(&["xgc".into(), "auth".into()]).unwrap(),
+            "default"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_profile_uses_environment() {
+        unsafe { std::env::set_var("XGC_PROFILE", "personal") };
+        let result = extract_profile_arg(&["xgc".into(), "auth".into()]);
+        unsafe { std::env::remove_var("XGC_PROFILE") };
+        assert_eq!(result.unwrap(), "personal");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_profile_flag_overrides_environment() {
+        unsafe { std::env::set_var("XGC_PROFILE", "school") };
+        let result = extract_profile_arg(&[
+            "xgc".into(),
+            "auth".into(),
+            "login".into(),
+            "--profile".into(),
+            "personal".into(),
+        ]);
+        unsafe { std::env::remove_var("XGC_PROFILE") };
+        assert_eq!(result.unwrap(), "personal");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_invalid_environment_profile_is_rejected() {
+        unsafe { std::env::set_var("XGC_PROFILE", "../../escape") };
+        let result = extract_profile_arg(&["xgc".into(), "auth".into()]);
+        unsafe { std::env::remove_var("XGC_PROFILE") };
+        assert!(result.is_err());
     }
 
     #[test]
     fn test_filter_args_no_special_flags() {
         let args: Vec<String> = vec![
-            "gws".into(),
+            "xgc".into(),
             "drive".into(),
             "files".into(),
             "list".into(),
@@ -707,7 +821,7 @@ mod tests {
             "table".into(),
         ];
         let filtered = filter_args_for_subcommand(&args, "drive");
-        assert_eq!(filtered, vec!["gws", "files", "list", "--format", "table"]);
+        assert_eq!(filtered, vec!["xgc", "files", "list", "--format", "table"]);
     }
 
     #[test]

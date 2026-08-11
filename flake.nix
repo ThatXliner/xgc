@@ -1,5 +1,5 @@
 {
-  description = "Google Workspace CLI — dynamic command surface from Discovery Service";
+  description = "xliner’s GWS-CLI — dynamic Google Workspace commands from Discovery Service";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -27,8 +27,8 @@
           apple-sdk
         ];
 
-        gws = pkgs.rustPlatform.buildRustPackage {
-          pname = "gws";
+        xgc = pkgs.rustPlatform.buildRustPackage {
+          pname = "xgc";
           inherit version;
 
           src = ./.;
@@ -50,20 +50,20 @@
             homepage = cargoToml.package.homepage;
             license = licenses.asl20;
             maintainers = [{ name = "Justin Poehnelt"; email = "justin.poehnelt@gmail.com"; }];
-            mainProgram = "gws";
+            mainProgram = "xgc";
           };
         };
       in
       {
-        packages.default = gws;
-        packages.gws = gws;
+        packages.default = xgc;
+        packages.xgc = xgc;
 
         apps.default = flake-utils.lib.mkApp {
-          drv = gws;
+          drv = xgc;
         };
 
         devShells.default = pkgs.mkShell {
-          inputsFrom = [ gws ];
+          inputsFrom = [ xgc ];
           buildInputs = with pkgs; [
             rustc
             cargo

@@ -46,7 +46,7 @@ fn parse_subscribe_args(matches: &ArgMatches) -> Result<SubscribeConfig, GwsErro
     if let Some(project) = matches
         .get_one::<String>("project")
         .cloned()
-        .or_else(|| std::env::var("GOOGLE_WORKSPACE_PROJECT_ID").ok())
+        .or_else(|| std::env::var("XGC_PROJECT_ID").ok())
     {
         builder.project(Some(ProjectId(project)));
     }
@@ -94,7 +94,8 @@ fn validate_subscribe_config(config: &SubscribeConfig) -> Result<(), GwsError> {
         }
         if config.project.is_none() {
             return Err(GwsError::Validation(
-                "--project is required when not using --subscription (or set GOOGLE_WORKSPACE_PROJECT_ID)".to_string(),
+                "--project is required when not using --subscription (or set XGC_PROJECT_ID)"
+                    .to_string(),
             ));
         }
     }
@@ -168,8 +169,8 @@ pub(super) async fn handle_subscribe(
             // e.g. "google.workspace.drive.file.v1.updated" -> "drive-file-updated"
             let slug = derive_slug_from_event_types(&event_types_str);
             let suffix = format!("{:08x}", rand::random::<u32>());
-            let topic = format!("projects/{project}/topics/gws-{slug}-{suffix}");
-            let sub = format!("projects/{project}/subscriptions/gws-{slug}-{suffix}");
+            let topic = format!("projects/{project}/topics/xgc-{slug}-{suffix}");
+            let sub = format!("projects/{project}/subscriptions/xgc-{slug}-{suffix}");
 
             // Dry-run: print what would be created and exit
             if dry_run {
@@ -350,7 +351,7 @@ pub(super) async fn handle_subscribe(
         } else {
             eprintln!("\n--- Reconnection Info ---");
             eprintln!(
-                "To reconnect later:\n  gws events +subscribe --subscription {}",
+                "To reconnect later:\n  xgc events +subscribe --subscription {}",
                 pubsub_subscription
             );
             if let Some(ref ws_name) = ws_subscription_name {

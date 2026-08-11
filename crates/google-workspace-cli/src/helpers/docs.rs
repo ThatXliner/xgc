@@ -49,7 +49,7 @@ impl Helper for DocsHelper {
                 .after_help(
                     "\
 EXAMPLES:
-  gws docs +write --document DOC_ID --text 'Hello, world!'
+  xgc docs +write --document DOC_ID --text 'Hello, world!'
 
 TIPS:
   Text is inserted at the end of the document body.
@@ -173,8 +173,10 @@ mod tests {
             },
         );
 
-        let mut documents_res = RestResource::default();
-        documents_res.methods = methods;
+        let documents_res = RestResource {
+            methods,
+            ..Default::default()
+        };
 
         let mut resources = HashMap::new();
         resources.insert("documents".to_string(), documents_res);

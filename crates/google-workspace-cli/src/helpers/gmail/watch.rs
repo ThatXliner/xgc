@@ -29,162 +29,163 @@ pub(super) async fn handle_watch(
         .await
         .context("Failed to get Pub/Sub token")?;
 
-    let (pubsub_subscription, topic_name, created_resources) = if let Some(ref sub_name) =
-        config.subscription
-    {
-        (sub_name.clone(), None, false)
-    } else {
-        let project = config
-            .project.clone()
-            .or_else(|| std::env::var("GOOGLE_WORKSPACE_PROJECT_ID").ok())
-            .ok_or_else(|| {
-                GwsError::Validation(
-                    "--project is required when not using --subscription (or set GOOGLE_WORKSPACE_PROJECT_ID)".to_string(),
-                )
-            })?;
-
-        let suffix = format!("{:08x}", rand::random::<u32>());
-        let topic = if let Some(ref t) = config.topic {
-            crate::validate::validate_resource_name(t)?.to_string()
+    let (pubsub_subscription, topic_name, created_resources) =
+        if let Some(ref sub_name) = config.subscription {
+            (sub_name.clone(), None, false)
         } else {
+            let project = config
+                .project
+                .clone()
+                .or_else(|| std::env::var("XGC_PROJECT_ID").ok())
+                .ok_or_else(|| {
+                    GwsError::Validation(
+                    "--project is required when not using --subscription (or set XGC_PROJECT_ID)"
+                        .to_string(),
+                )
+                })?;
+
+            let suffix = format!("{:08x}", rand::random::<u32>());
+            let topic = if let Some(ref t) = config.topic {
+                crate::validate::validate_resource_name(t)?.to_string()
+            } else {
+                let project = crate::validate::validate_resource_name(&project)?;
+                let t = format!("projects/{project}/topics/xgc-gmail-watch-{suffix}");
+                // Create Pub/Sub topic
+                eprintln!("Creating Pub/Sub topic: {t}");
+                let resp = client
+                    .put(format!("{PUBSUB_API_BASE}/{t}"))
+                    .bearer_auth(&pubsub_token)
+                    .header("Content-Type", "application/json")
+                    .body("{}")
+                    .send()
+                    .await
+                    .context("Failed to create topic")?;
+
+                if !resp.status().is_success() {
+                    let body = resp.text().await.unwrap_or_default();
+                    return Err(GwsError::Api {
+                        code: 400,
+                        message: format!("Failed to create Pub/Sub topic: {body}"),
+                        reason: "pubsubError".to_string(),
+                        enable_url: None,
+                    });
+                }
+
+                // Grant Gmail publish permission on the topic
+                eprintln!("Granting Gmail push permission on topic...");
+                let iam_body = json!({
+                    "policy": {
+                        "bindings": [{
+                            "role": "roles/pubsub.publisher",
+                            "members": ["serviceAccount:gmail-api-push@system.gserviceaccount.com"]
+                        }]
+                    }
+                });
+                let resp = client
+                    .post(format!("{PUBSUB_API_BASE}/{t}:setIamPolicy"))
+                    .bearer_auth(&pubsub_token)
+                    .header("Content-Type", "application/json")
+                    .json(&iam_body)
+                    .send()
+                    .await
+                    .context("Failed to set topic IAM policy")?;
+
+                if !resp.status().is_success() {
+                    let body = resp.text().await.unwrap_or_default();
+                    eprintln!("Warning: Could not auto-grant Gmail push permission.");
+                    eprintln!("You may need to manually grant publisher access:");
+                    eprintln!(
+                        "  gcloud pubsub topics add-iam-policy-binding {} \\",
+                        t.split('/').rfind(|s| !s.is_empty()).unwrap_or(&t)
+                    );
+                    eprintln!(
+                        "    --member=serviceAccount:gmail-api-push@system.gserviceaccount.com \\"
+                    );
+                    eprintln!("    --role=roles/pubsub.publisher");
+                    eprintln!("Error: {}", sanitize_for_terminal(&body));
+                }
+
+                t
+            };
+
             let project = crate::validate::validate_resource_name(&project)?;
-            let t = format!("projects/{project}/topics/gws-gmail-watch-{suffix}");
-            // Create Pub/Sub topic
-            eprintln!("Creating Pub/Sub topic: {t}");
+            let sub = format!("projects/{project}/subscriptions/xgc-gmail-watch-{suffix}");
+
+            // 3. Create Pub/Sub subscription
+            eprintln!("Creating Pub/Sub subscription: {sub}");
+            let sub_body = json!({
+                "topic": topic,
+                "ackDeadlineSeconds": 60,
+            });
             let resp = client
-                .put(format!("{PUBSUB_API_BASE}/{t}"))
+                .put(format!("{PUBSUB_API_BASE}/{sub}"))
                 .bearer_auth(&pubsub_token)
                 .header("Content-Type", "application/json")
-                .body("{}")
+                .json(&sub_body)
                 .send()
                 .await
-                .context("Failed to create topic")?;
+                .context("Failed to create subscription")?;
 
             if !resp.status().is_success() {
                 let body = resp.text().await.unwrap_or_default();
                 return Err(GwsError::Api {
                     code: 400,
-                    message: format!("Failed to create Pub/Sub topic: {body}"),
+                    message: format!("Failed to create Pub/Sub subscription: {body}"),
                     reason: "pubsubError".to_string(),
                     enable_url: None,
                 });
             }
 
-            // Grant Gmail publish permission on the topic
-            eprintln!("Granting Gmail push permission on topic...");
-            let iam_body = json!({
-                "policy": {
-                    "bindings": [{
-                        "role": "roles/pubsub.publisher",
-                        "members": ["serviceAccount:gmail-api-push@system.gserviceaccount.com"]
-                    }]
-                }
+            // 4. Call gmail.users.watch
+            eprintln!("Setting up Gmail watch...");
+            let mut watch_body = json!({
+                "topicName": topic,
             });
-            let resp = client
-                .post(format!("{PUBSUB_API_BASE}/{t}:setIamPolicy"))
-                .bearer_auth(&pubsub_token)
-                .header("Content-Type", "application/json")
-                .json(&iam_body)
-                .send()
-                .await
-                .context("Failed to set topic IAM policy")?;
-
-            if !resp.status().is_success() {
-                let body = resp.text().await.unwrap_or_default();
-                eprintln!("Warning: Could not auto-grant Gmail push permission.");
-                eprintln!("You may need to manually grant publisher access:");
-                eprintln!(
-                    "  gcloud pubsub topics add-iam-policy-binding {} \\",
-                    t.split('/').rfind(|s| !s.is_empty()).unwrap_or(&t)
-                );
-                eprintln!(
-                    "    --member=serviceAccount:gmail-api-push@system.gserviceaccount.com \\"
-                );
-                eprintln!("    --role=roles/pubsub.publisher");
-                eprintln!("Error: {}", sanitize_for_terminal(&body));
+            if let Some(ref label_ids) = config.label_ids {
+                let labels: Vec<&str> = label_ids.split(',').map(|s| s.trim()).collect();
+                watch_body["labelIds"] = json!(labels);
             }
 
-            t
+            let resp = client
+                .post(format!("{GMAIL_API_BASE}/users/me/watch"))
+                .bearer_auth(&gmail_token)
+                .header("Content-Type", "application/json")
+                .json(&watch_body)
+                .send()
+                .await
+                .context("Failed to call gmail.users.watch")?;
+
+            let watch_resp: Value = resp
+                .json()
+                .await
+                .context("Failed to parse watch response")?;
+
+            if let Some(err) = watch_resp.get("error") {
+                return Err(GwsError::Api {
+                    code: err.get("code").and_then(|c| c.as_u64()).unwrap_or(400) as u16,
+                    message: format!(
+                        "gmail.users.watch failed: {}",
+                        serde_json::to_string(err).unwrap_or_default()
+                    ),
+                    reason: "gmailError".to_string(),
+                    enable_url: None,
+                });
+            }
+
+            let history_id = watch_resp
+                .get("historyId")
+                .and_then(|h| h.as_str())
+                .unwrap_or("0");
+            let expiration = watch_resp
+                .get("expiration")
+                .and_then(|e| e.as_str())
+                .unwrap_or("unknown");
+
+            eprintln!("Gmail watch active (historyId: {history_id}, expires: {expiration})");
+            eprintln!("Listening for new emails...\n");
+
+            (sub, Some(topic), true)
         };
-
-        let project = crate::validate::validate_resource_name(&project)?;
-        let sub = format!("projects/{project}/subscriptions/gws-gmail-watch-{suffix}");
-
-        // 3. Create Pub/Sub subscription
-        eprintln!("Creating Pub/Sub subscription: {sub}");
-        let sub_body = json!({
-            "topic": topic,
-            "ackDeadlineSeconds": 60,
-        });
-        let resp = client
-            .put(format!("{PUBSUB_API_BASE}/{sub}"))
-            .bearer_auth(&pubsub_token)
-            .header("Content-Type", "application/json")
-            .json(&sub_body)
-            .send()
-            .await
-            .context("Failed to create subscription")?;
-
-        if !resp.status().is_success() {
-            let body = resp.text().await.unwrap_or_default();
-            return Err(GwsError::Api {
-                code: 400,
-                message: format!("Failed to create Pub/Sub subscription: {body}"),
-                reason: "pubsubError".to_string(),
-                enable_url: None,
-            });
-        }
-
-        // 4. Call gmail.users.watch
-        eprintln!("Setting up Gmail watch...");
-        let mut watch_body = json!({
-            "topicName": topic,
-        });
-        if let Some(ref label_ids) = config.label_ids {
-            let labels: Vec<&str> = label_ids.split(',').map(|s| s.trim()).collect();
-            watch_body["labelIds"] = json!(labels);
-        }
-
-        let resp = client
-            .post(format!("{GMAIL_API_BASE}/users/me/watch"))
-            .bearer_auth(&gmail_token)
-            .header("Content-Type", "application/json")
-            .json(&watch_body)
-            .send()
-            .await
-            .context("Failed to call gmail.users.watch")?;
-
-        let watch_resp: Value = resp
-            .json()
-            .await
-            .context("Failed to parse watch response")?;
-
-        if let Some(err) = watch_resp.get("error") {
-            return Err(GwsError::Api {
-                code: err.get("code").and_then(|c| c.as_u64()).unwrap_or(400) as u16,
-                message: format!(
-                    "gmail.users.watch failed: {}",
-                    serde_json::to_string(err).unwrap_or_default()
-                ),
-                reason: "gmailError".to_string(),
-                enable_url: None,
-            });
-        }
-
-        let history_id = watch_resp
-            .get("historyId")
-            .and_then(|h| h.as_str())
-            .unwrap_or("0");
-        let expiration = watch_resp
-            .get("expiration")
-            .and_then(|e| e.as_str())
-            .unwrap_or("unknown");
-
-        eprintln!("Gmail watch active (historyId: {history_id}, expires: {expiration})");
-        eprintln!("Listening for new emails...\n");
-
-        (sub, Some(topic), true)
-    };
 
     // Get initial historyId for tracking
     let profile_resp = client
@@ -243,7 +244,7 @@ pub(super) async fn handle_watch(
         } else {
             eprintln!("\n--- Reconnection Info ---");
             eprintln!(
-                "To reconnect later:\n  gws gmail +watch --subscription {}",
+                "To reconnect later:\n  xgc gmail +watch --subscription {}",
                 pubsub_subscription
             );
             if let Some(ref topic) = topic_name {

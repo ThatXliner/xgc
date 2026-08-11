@@ -59,9 +59,9 @@ impl Helper for SheetsHelper {
                 )
                 .after_help(
                     r#"EXAMPLES:
-  gws sheets +append --spreadsheet ID --values 'Alice,100,true'
-  gws sheets +append --spreadsheet ID --json-values '[["a","b"],["c","d"]]'
-  gws sheets +append --spreadsheet ID --range "Sheet2!A1" --values 'Alice,100'
+  xgc sheets +append --spreadsheet ID --values 'Alice,100,true'
+  xgc sheets +append --spreadsheet ID --json-values '[["a","b"],["c","d"]]'
+  xgc sheets +append --spreadsheet ID --range "Sheet2!A1" --values 'Alice,100'
 
 TIPS:
   Use --values for simple single-row appends.
@@ -90,8 +90,8 @@ TIPS:
                 .after_help(
                     "\
 EXAMPLES:
-  gws sheets +read --spreadsheet ID --range \"Sheet1!A1:D10\"
-  gws sheets +read --spreadsheet ID --range Sheet1
+  xgc sheets +read --spreadsheet ID --range \"Sheet1!A1:D10\"
+  xgc sheets +read --spreadsheet ID --range Sheet1
 
 TIPS:
   Read-only — never modifies the spreadsheet.
@@ -346,8 +346,10 @@ mod tests {
             },
         );
 
-        let mut values_res = RestResource::default();
-        values_res.methods = methods;
+        let values_res = RestResource {
+            methods,
+            ..Default::default()
+        };
 
         let mut spreadsheets_res = RestResource::default();
         spreadsheets_res

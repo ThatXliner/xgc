@@ -88,9 +88,9 @@ impl Helper for CalendarHelper {
                 )
                 .after_help("\
 EXAMPLES:
-  gws calendar +insert --summary 'Standup' --start '2026-06-17T09:00:00-07:00' --end '2026-06-17T09:30:00-07:00'
-  gws calendar +insert --summary 'Review' --start ... --end ... --attendee alice@example.com
-  gws calendar +insert --summary 'Meet' --start ... --end ... --meet
+  xgc calendar +insert --summary 'Standup' --start '2026-06-17T09:00:00-07:00' --end '2026-06-17T09:30:00-07:00'
+  xgc calendar +insert --summary 'Review' --start ... --end ... --attendee alice@example.com
+  xgc calendar +insert --summary 'Meet' --start ... --end ... --meet
 
 TIPS:
   Use RFC3339 format for times (e.g. 2026-06-17T09:00:00-07:00).
@@ -139,11 +139,11 @@ TIPS:
                 .after_help(
                     "\
 EXAMPLES:
-  gws calendar +agenda
-  gws calendar +agenda --today
-  gws calendar +agenda --week --format table
-  gws calendar +agenda --days 3 --calendar 'Work'
-  gws calendar +agenda --today --timezone America/New_York
+  xgc calendar +agenda
+  xgc calendar +agenda --today
+  xgc calendar +agenda --week --format table
+  xgc calendar +agenda --days 3 --calendar 'Work'
+  xgc calendar +agenda --today --timezone America/New_York
 
 TIPS:
   Read-only — never modifies events.

@@ -93,8 +93,8 @@ fn build_standup_report_cmd() -> Command {
         .after_help(
             "\
 EXAMPLES:
-  gws workflow +standup-report
-  gws workflow +standup-report --format table
+  xgc workflow +standup-report
+  xgc workflow +standup-report --format table
 
 TIPS:
   Read-only — never modifies data.
@@ -122,8 +122,8 @@ fn build_meeting_prep_cmd() -> Command {
         .after_help(
             "\
 EXAMPLES:
-  gws workflow +meeting-prep
-  gws workflow +meeting-prep --calendar Work
+  xgc workflow +meeting-prep
+  xgc workflow +meeting-prep --calendar Work
 
 TIPS:
   Read-only — never modifies data.
@@ -151,8 +151,8 @@ fn build_email_to_task_cmd() -> Command {
         .after_help(
             "\
 EXAMPLES:
-  gws workflow +email-to-task --message-id MSG_ID
-  gws workflow +email-to-task --message-id MSG_ID --tasklist LIST_ID
+  xgc workflow +email-to-task --message-id MSG_ID
+  xgc workflow +email-to-task --message-id MSG_ID --tasklist LIST_ID
 
 TIPS:
   Reads the email subject as the task title and snippet as notes.
@@ -173,8 +173,8 @@ fn build_weekly_digest_cmd() -> Command {
         .after_help(
             "\
 EXAMPLES:
-  gws workflow +weekly-digest
-  gws workflow +weekly-digest --format table
+  xgc workflow +weekly-digest
+  xgc workflow +weekly-digest --format table
 
 TIPS:
   Read-only — never modifies data.
@@ -215,12 +215,12 @@ fn build_file_announce_cmd() -> Command {
         .after_help(
             "\
 EXAMPLES:
-  gws workflow +file-announce --file-id FILE_ID --space spaces/ABC123
-  gws workflow +file-announce --file-id FILE_ID --space spaces/ABC123 --message 'Check this out!'
+  xgc workflow +file-announce --file-id FILE_ID --space spaces/ABC123
+  xgc workflow +file-announce --file-id FILE_ID --space spaces/ABC123 --message 'Check this out!'
 
 TIPS:
   This is a write command — sends a Chat message.
-  Use `gws drive +upload` first to upload the file, then announce it here.
+  Use `xgc drive +upload` first to upload the file, then announce it here.
   Fetches the file name from Drive to build the announcement.",
         )
 }

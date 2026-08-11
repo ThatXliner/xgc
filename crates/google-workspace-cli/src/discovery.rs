@@ -23,7 +23,7 @@ pub use google_workspace::discovery::*;
 ///
 /// This is a convenience wrapper around
 /// [`google_workspace::discovery::fetch_discovery_document`] that automatically
-/// uses the CLI's cache directory (`~/.config/gws/cache/`).
+/// uses the CLI's cache directory (`~/.config/xgc/cache/`).
 pub async fn fetch_discovery_document(
     service: &str,
     version: &str,

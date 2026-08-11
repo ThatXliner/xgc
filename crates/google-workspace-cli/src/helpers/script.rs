@@ -51,8 +51,8 @@ impl Helper for ScriptHelper {
                 .after_help(
                     "\
 EXAMPLES:
-  gws script +push --script SCRIPT_ID
-  gws script +push --script SCRIPT_ID --dir ./src
+  xgc script +push --script SCRIPT_ID
+  xgc script +push --script SCRIPT_ID --dir ./src
 
 TIPS:
   Supports .gs, .js, .html, and appsscript.json files.
@@ -169,13 +169,8 @@ fn process_file(path: &Path) -> Result<Option<serde_json::Value>, GwsError> {
             filename.trim_end_matches(".js").trim_end_matches(".gs"),
         ),
         "html" => ("HTML", filename.trim_end_matches(".html")),
-        "json" => {
-            if filename == "appsscript.json" {
-                ("JSON", "appsscript")
-            } else {
-                return Ok(None);
-            }
-        }
+        "json" if filename == "appsscript.json" => ("JSON", "appsscript"),
+        "json" => return Ok(None),
         _ => return Ok(None),
     };
 

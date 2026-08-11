@@ -607,7 +607,7 @@ pub(super) async fn resolve_sender(
                 Err(e) => {
                     // Token acquisition failed — scope likely not granted.
                     eprintln!(
-                        "Tip: run `gws auth login` and grant the \"profile\" scope \
+                        "Tip: run `xgc auth login` and grant the \"profile\" scope \
                          to include your display name in the From header ({})",
                         sanitize_for_terminal(&e.to_string())
                     );
@@ -621,7 +621,7 @@ pub(super) async fn resolve_sender(
                     Err(e) if matches!(&e, GwsError::Api { code: 403, .. }) => {
                         // Token exists but doesn't carry the scope.
                         eprintln!(
-                            "Tip: run `gws auth login` and grant the \"profile\" scope \
+                            "Tip: run `xgc auth login` and grant the \"profile\" scope \
                              to include your display name in the From header"
                         );
                     }
@@ -1488,7 +1488,7 @@ pub(super) async fn dispatch_raw_email(
 
     if draft && !matches.get_flag("dry-run") {
         eprintln!("Tip: copy the draft \"id\" from the response above, then send with:");
-        eprintln!("  gws gmail users.drafts.send --body '{{\"id\":\"<draft-id>\"}}'");
+        eprintln!("  xgc gmail users.drafts.send --body '{{\"id\":\"<draft-id>\"}}'");
     }
 
     Ok(())
@@ -1611,13 +1611,13 @@ impl Helper for GmailHelper {
             .after_help(
                 "\
 EXAMPLES:
-  gws gmail +send --to alice@example.com --subject 'Hello' --body 'Hi Alice!'
-  gws gmail +send --to alice@example.com --subject 'Hello' --body 'Hi!' --cc bob@example.com
-  gws gmail +send --to alice@example.com --subject 'Hello' --body '<b>Bold</b> text' --html
-  gws gmail +send --to alice@example.com --subject 'Hello' --body 'Hi!' --from alias@example.com
-  gws gmail +send --to alice@example.com --subject 'Report' --body 'See attached' -a report.pdf
-  gws gmail +send --to alice@example.com --subject 'Files' --body 'Two files' -a a.pdf -a b.csv
-  gws gmail +send --to alice@example.com --subject 'Hello' --body 'Hi!' --draft
+  xgc gmail +send --to alice@example.com --subject 'Hello' --body 'Hi Alice!'
+  xgc gmail +send --to alice@example.com --subject 'Hello' --body 'Hi!' --cc bob@example.com
+  xgc gmail +send --to alice@example.com --subject 'Hello' --body '<b>Bold</b> text' --html
+  xgc gmail +send --to alice@example.com --subject 'Hello' --body 'Hi!' --from alias@example.com
+  xgc gmail +send --to alice@example.com --subject 'Report' --body 'See attached' -a report.pdf
+  xgc gmail +send --to alice@example.com --subject 'Files' --body 'Two files' -a a.pdf -a b.csv
+  xgc gmail +send --to alice@example.com --subject 'Hello' --body 'Hi!' --draft
 
 TIPS:
   Handles RFC 5322 formatting, MIME encoding, and base64 automatically.
@@ -1653,10 +1653,10 @@ TIPS:
                 .after_help(
                     "\
 EXAMPLES:
-  gws gmail +triage
-  gws gmail +triage --max 5 --query 'from:boss'
-  gws gmail +triage --format json | jq '.[].subject'
-  gws gmail +triage --labels
+  xgc gmail +triage
+  xgc gmail +triage --max 5 --query 'from:boss'
+  xgc gmail +triage --format json | jq '.[].subject'
+  xgc gmail +triage --labels
 
 TIPS:
   Read-only — never modifies your mailbox.
@@ -1672,12 +1672,12 @@ TIPS:
             .after_help(
                 "\
 EXAMPLES:
-  gws gmail +reply --message-id 18f1a2b3c4d --body 'Thanks, got it!'
-  gws gmail +reply --message-id 18f1a2b3c4d --body 'Looping in Carol' --cc carol@example.com
-  gws gmail +reply --message-id 18f1a2b3c4d --body 'Adding Dave' --to dave@example.com
-  gws gmail +reply --message-id 18f1a2b3c4d --body '<b>Bold reply</b>' --html
-  gws gmail +reply --message-id 18f1a2b3c4d --body 'Updated version' -a updated.docx
-  gws gmail +reply --message-id 18f1a2b3c4d --body 'Draft reply' --draft
+  xgc gmail +reply --message-id 18f1a2b3c4d --body 'Thanks, got it!'
+  xgc gmail +reply --message-id 18f1a2b3c4d --body 'Looping in Carol' --cc carol@example.com
+  xgc gmail +reply --message-id 18f1a2b3c4d --body 'Adding Dave' --to dave@example.com
+  xgc gmail +reply --message-id 18f1a2b3c4d --body '<b>Bold reply</b>' --html
+  xgc gmail +reply --message-id 18f1a2b3c4d --body 'Updated version' -a updated.docx
+  xgc gmail +reply --message-id 18f1a2b3c4d --body 'Draft reply' --draft
 
 TIPS:
   Automatically sets In-Reply-To, References, and threadId headers.
@@ -1706,12 +1706,12 @@ Use fragment tags (<p>, <b>, <a>, etc.) — no <html>/<body> wrapper needed.
             .after_help(
                     "\
 EXAMPLES:
-  gws gmail +reply-all --message-id 18f1a2b3c4d --body 'Sounds good to me!'
-  gws gmail +reply-all --message-id 18f1a2b3c4d --body 'Updated' --remove bob@example.com
-  gws gmail +reply-all --message-id 18f1a2b3c4d --body 'Adding Eve' --cc eve@example.com
-  gws gmail +reply-all --message-id 18f1a2b3c4d --body '<i>Noted</i>' --html
-  gws gmail +reply-all --message-id 18f1a2b3c4d --body 'Notes attached' -a notes.pdf
-  gws gmail +reply-all --message-id 18f1a2b3c4d --body 'Draft reply' --draft
+  xgc gmail +reply-all --message-id 18f1a2b3c4d --body 'Sounds good to me!'
+  xgc gmail +reply-all --message-id 18f1a2b3c4d --body 'Updated' --remove bob@example.com
+  xgc gmail +reply-all --message-id 18f1a2b3c4d --body 'Adding Eve' --cc eve@example.com
+  xgc gmail +reply-all --message-id 18f1a2b3c4d --body '<i>Noted</i>' --html
+  xgc gmail +reply-all --message-id 18f1a2b3c4d --body 'Notes attached' -a notes.pdf
+  xgc gmail +reply-all --message-id 18f1a2b3c4d --body 'Draft reply' --draft
 
 TIPS:
   Replies to the sender and all original To/CC recipients.
@@ -1768,13 +1768,13 @@ Use fragment tags (<p>, <b>, <a>, etc.) — no <html>/<body> wrapper needed.
             .after_help(
                     "\
 EXAMPLES:
-  gws gmail +forward --message-id 18f1a2b3c4d --to dave@example.com
-  gws gmail +forward --message-id 18f1a2b3c4d --to dave@example.com --body 'FYI see below'
-  gws gmail +forward --message-id 18f1a2b3c4d --to dave@example.com --cc eve@example.com
-  gws gmail +forward --message-id 18f1a2b3c4d --to dave@example.com --body '<p>FYI</p>' --html
-  gws gmail +forward --message-id 18f1a2b3c4d --to dave@example.com -a notes.pdf
-  gws gmail +forward --message-id 18f1a2b3c4d --to dave@example.com --no-original-attachments
-  gws gmail +forward --message-id 18f1a2b3c4d --to dave@example.com --draft
+  xgc gmail +forward --message-id 18f1a2b3c4d --to dave@example.com
+  xgc gmail +forward --message-id 18f1a2b3c4d --to dave@example.com --body 'FYI see below'
+  xgc gmail +forward --message-id 18f1a2b3c4d --to dave@example.com --cc eve@example.com
+  xgc gmail +forward --message-id 18f1a2b3c4d --to dave@example.com --body '<p>FYI</p>' --html
+  xgc gmail +forward --message-id 18f1a2b3c4d --to dave@example.com -a notes.pdf
+  xgc gmail +forward --message-id 18f1a2b3c4d --to dave@example.com --no-original-attachments
+  xgc gmail +forward --message-id 18f1a2b3c4d --to dave@example.com --draft
 
 TIPS:
   Includes the original message with sender, date, subject, and recipients.
@@ -1829,9 +1829,9 @@ Use fragment tags (<p>, <b>, <a>, etc.) — no <html>/<body> wrapper needed.
                 .after_help(
                     "\
 EXAMPLES:
-  gws gmail +read --id 18f1a2b3c4d
-  gws gmail +read --id 18f1a2b3c4d --headers
-  gws gmail +read --id 18f1a2b3c4d --format json | jq '.body'
+  xgc gmail +read --id 18f1a2b3c4d
+  xgc gmail +read --id 18f1a2b3c4d --headers
+  xgc gmail +read --id 18f1a2b3c4d --format json | jq '.body'
 
 TIPS:
   Converts HTML-only messages to plain text automatically.
@@ -1909,10 +1909,10 @@ TIPS:
                 .after_help(
                     "\
 EXAMPLES:
-  gws gmail +watch --project my-gcp-project
-  gws gmail +watch --project my-project --label-ids INBOX --once
-  gws gmail +watch --subscription projects/p/subscriptions/my-sub
-  gws gmail +watch --project my-project --cleanup --output-dir ./emails
+  xgc gmail +watch --project my-gcp-project
+  xgc gmail +watch --project my-project --label-ids INBOX --once
+  xgc gmail +watch --subscription projects/p/subscriptions/my-sub
+  xgc gmail +watch --project my-project --cleanup --output-dir ./emails
 
 TIPS:
   Gmail watch expires after 7 days — re-run to renew.

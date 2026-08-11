@@ -13,20 +13,20 @@
 # limitations under the License.
 
 [package]
-name = "google-workspace-cli"
+name = "xgc"
 version = "0.22.5"
 edition = "2021"
-description = "Google Workspace CLI — dynamic command surface from Discovery Service"
+description = "xliner’s GWS-CLI — dynamic Google Workspace commands from Discovery Service"
 license = "Apache-2.0"
-repository = "https://github.com/googleworkspace/cli"
-homepage = "https://github.com/googleworkspace/cli"
+repository = "https://github.com/ThatXliner/xgc"
+homepage = "https://github.com/ThatXliner/xgc"
 readme = "README.md"
-authors = ["Justin Poehnelt"]
+authors = ["Justin Poehnelt", "xliner"]
 keywords = ["cli", "google-workspace", "google", "drive", "gmail"]
 categories = ["command-line-utilities", "web-programming"]
 
 [[bin]]
-name = "gws"
+name = "xgc"
 path = "src/main.rs"
 
 [dependencies]

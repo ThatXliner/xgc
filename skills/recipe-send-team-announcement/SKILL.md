@@ -8,20 +8,19 @@ metadata:
     domain: "communication"
     requires:
       bins:
-        - gws
+        - xgc
       skills:
-        - gws-gmail
-        - gws-chat
+        - xgc-gmail
+        - xgc-chat
 ---
 
 # Announce via Gmail and Google Chat
 
-> **PREREQUISITE:** Load the following skills to execute this recipe: `gws-gmail`, `gws-chat`
+> **PREREQUISITE:** Load the following skills to execute this recipe: `xgc-gmail`, `xgc-chat`
 
 Send a team announcement via both Gmail and a Google Chat space.
 
 ## Steps
 
-1. Send email: `gws gmail +send --to team@company.com --subject 'Important Update' --body 'Please review the attached policy changes.'`
-2. Post in Chat: `gws chat +send --space spaces/TEAM_SPACE --text '📢 Important Update: Please check your email for policy changes.'`
-
+1. Send email: `xgc gmail +send --to team@company.com --subject 'Important Update' --body 'Please review the attached policy changes.'`
+2. Post in Chat: `xgc chat +send --space spaces/TEAM_SPACE --text '📢 Important Update: Please check your email for policy changes.'`

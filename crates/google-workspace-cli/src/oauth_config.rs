@@ -225,10 +225,7 @@ mod tests {
     #[serial_test::serial]
     fn test_load_client_config() {
         let dir = tempfile::tempdir().unwrap();
-        let _env_guard = EnvGuard::new(
-            "GOOGLE_WORKSPACE_CLI_CONFIG_DIR",
-            dir.path().to_str().unwrap(),
-        );
+        let _env_guard = EnvGuard::new("XGC_CONFIG_DIR", dir.path().to_str().unwrap());
 
         // Initially no config file exists
         let result = load_client_config();

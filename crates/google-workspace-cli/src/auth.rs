@@ -83,18 +83,18 @@ async fn refresh_token_with_reqwest(
 /// Returns the project ID to be used for quota and billing (sets the `x-goog-user-project` header).
 ///
 /// Priority:
-/// 1. `GOOGLE_WORKSPACE_PROJECT_ID` environment variable.
+/// 1. `XGC_PROJECT_ID` environment variable.
 /// 2. `project_id` from the OAuth client configuration (`client_secret.json`).
 /// 3. `quota_project_id` from Application Default Credentials (ADC).
 pub fn get_quota_project() -> Option<String> {
     // 1. Explicit environment variable (highest priority)
-    if let Ok(project_id) = std::env::var("GOOGLE_WORKSPACE_PROJECT_ID") {
+    if let Ok(project_id) = std::env::var("XGC_PROJECT_ID") {
         if !project_id.is_empty() {
             return Some(project_id);
         }
     }
 
-    // 2. Project ID from the OAuth client configuration (set via `gws auth setup`)
+    // 2. Project ID from the OAuth client configuration (set via `xgc auth setup`)
     if let Ok(config) = crate::oauth_config::load_client_config() {
         if !config.project_id.is_empty() {
             return Some(config.project_id);
@@ -203,27 +203,26 @@ impl AccessTokenProvider for FakeTokenProvider {
 /// Builds an OAuth2 authenticator and returns an access token.
 ///
 /// Tries credentials in order:
-/// 0. `GOOGLE_WORKSPACE_CLI_TOKEN` env var (raw access token, highest priority)
-/// 1. `GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE` env var (plaintext JSON, can be User or Service Account)
-/// 2. Encrypted credentials at `~/.config/gws/credentials.enc`
-/// 3. Plaintext credentials at `~/.config/gws/credentials.json` (User only)
+/// 0. `XGC_TOKEN` env var (raw access token, highest priority)
+/// 1. `XGC_CREDENTIALS_FILE` env var (plaintext JSON, can be User or Service Account)
+/// 2. Encrypted credentials at `~/.config/xgc/credentials.enc`
+/// 3. Plaintext credentials at `~/.config/xgc/credentials.json` (User only)
 /// 4. Application Default Credentials (ADC):
 ///    - `GOOGLE_APPLICATION_CREDENTIALS` env var (path to a JSON credentials file), then
 ///    - Well-known ADC path: `~/.config/gcloud/application_default_credentials.json`
 ///      (populated by `gcloud auth application-default login`)
 pub async fn get_token(scopes: &[&str]) -> anyhow::Result<String> {
     // 0. Direct token from env var (highest priority, bypasses all credential loading)
-    if let Ok(token) = std::env::var("GOOGLE_WORKSPACE_CLI_TOKEN") {
+    if let Ok(token) = std::env::var("XGC_TOKEN") {
         if !token.is_empty() {
             return Ok(token);
         }
     }
 
-    let creds_file = std::env::var("GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE").ok();
-    let config_dir = crate::auth_commands::config_dir();
+    let creds_file = std::env::var("XGC_CREDENTIALS_FILE").ok();
     let enc_path = credential_store::encrypted_credentials_path();
-    let default_path = config_dir.join("credentials.json");
-    let token_cache = config_dir.join("token_cache.json");
+    let default_path = crate::auth_commands::plain_credentials_path();
+    let token_cache = crate::auth_commands::token_cache_path();
 
     let creds = load_credentials_inner(creds_file.as_deref(), &enc_path, &default_path).await?;
     get_token_inner(scopes, creds, &token_cache).await
@@ -346,9 +345,7 @@ async fn load_credentials_inner(
                 .with_context(|| format!("Failed to read credentials from {path}"))?;
             return parse_credential_file(&p, &content).await;
         }
-        anyhow::bail!(
-            "GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE points to {path}, but file does not exist"
-        );
+        anyhow::bail!("XGC_CREDENTIALS_FILE points to {path}, but file does not exist");
     }
 
     // 2. Encrypted credentials
@@ -360,7 +357,7 @@ async fn load_credentials_inner(
             Err(e) => {
                 // Decryption failed — the encryption key likely changed (e.g. after
                 // an upgrade that migrated keys between keyring and file storage).
-                // Remove the stale file so the next `gws auth login` starts fresh,
+                // Remove the stale file so the next `xgc auth login` starts fresh,
                 // and fall through to other credential sources (plaintext, ADC).
                 eprintln!(
                     "Warning: removing undecryptable credentials file ({}): {e:#}",
@@ -426,8 +423,8 @@ async fn load_credentials_inner(
     }
 
     anyhow::bail!(
-        "No credentials found. Run `gws auth setup` to configure, \
-         `gws auth login` to authenticate, or set GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE.\n\
+        "No credentials found. Run `xgc auth setup` to configure, \
+         `xgc auth login` to authenticate, or set XGC_CREDENTIALS_FILE.\n\
          Tip: Application Default Credentials (ADC) are also supported — run \
          `gcloud auth application-default login` or set GOOGLE_APPLICATION_CREDENTIALS."
     )
@@ -728,7 +725,7 @@ mod tests {
     #[tokio::test]
     #[serial_test::serial]
     async fn test_get_token_from_env_var() {
-        let _token_guard = EnvVarGuard::set("GOOGLE_WORKSPACE_CLI_TOKEN", "my-test-token");
+        let _token_guard = EnvVarGuard::set("XGC_TOKEN", "my-test-token");
 
         let result = get_token(&["https://www.googleapis.com/auth/drive"]).await;
 
@@ -739,7 +736,7 @@ mod tests {
     #[tokio::test]
     #[serial_test::serial]
     async fn test_scoped_token_provider_uses_get_token() {
-        let _token_guard = EnvVarGuard::set("GOOGLE_WORKSPACE_CLI_TOKEN", "provider-token");
+        let _token_guard = EnvVarGuard::set("XGC_TOKEN", "provider-token");
         let provider = token_provider(&["https://www.googleapis.com/auth/drive"]);
 
         let first = provider.access_token().await.unwrap();
@@ -763,8 +760,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let enc_path = dir.path().join("credentials.enc");
 
-        // Isolate global config dir to prevent races with other tests
-        std::env::set_var("GOOGLE_WORKSPACE_CLI_CONFIG_DIR", dir.path());
+        // Isolate global config dir and restore it after the test.
+        let _config_guard = EnvVarGuard::set("XGC_CONFIG_DIR", dir.path());
 
         // Encrypt and write
         let encrypted = crate::credential_store::encrypt(json.as_bytes()).unwrap();
@@ -905,7 +902,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let _home_guard = EnvVarGuard::set("HOME", tmp.path());
         let _adc_guard = EnvVarGuard::remove("GOOGLE_APPLICATION_CREDENTIALS");
-        let _token_guard = EnvVarGuard::set("GOOGLE_WORKSPACE_CLI_TOKEN", "");
+        let _token_guard = EnvVarGuard::set("XGC_TOKEN", "");
 
         let result = load_credentials_inner(
             None,
@@ -926,9 +923,9 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_get_quota_project_priority_env_var() {
-        let _env_guard = EnvVarGuard::set("GOOGLE_WORKSPACE_PROJECT_ID", "priority-env");
+        let _env_guard = EnvVarGuard::set("XGC_PROJECT_ID", "priority-env");
         let _adc_guard = EnvVarGuard::remove("GOOGLE_APPLICATION_CREDENTIALS");
-        let _config_guard = EnvVarGuard::remove("GOOGLE_WORKSPACE_CLI_CONFIG_DIR");
+        let _config_guard = EnvVarGuard::remove("XGC_CONFIG_DIR");
         let _home_guard = EnvVarGuard::set("HOME", "/missing/home");
 
         assert_eq!(get_quota_project(), Some("priority-env".to_string()));
@@ -938,11 +935,8 @@ mod tests {
     #[serial_test::serial]
     fn test_get_quota_project_priority_config() {
         let tmp = tempfile::tempdir().unwrap();
-        let _config_guard = EnvVarGuard::set(
-            "GOOGLE_WORKSPACE_CLI_CONFIG_DIR",
-            tmp.path().to_str().unwrap(),
-        );
-        let _env_guard = EnvVarGuard::remove("GOOGLE_WORKSPACE_PROJECT_ID");
+        let _config_guard = EnvVarGuard::set("XGC_CONFIG_DIR", tmp.path().to_str().unwrap());
+        let _env_guard = EnvVarGuard::remove("XGC_PROJECT_ID");
         let _adc_guard = EnvVarGuard::remove("GOOGLE_APPLICATION_CREDENTIALS");
         let _home_guard = EnvVarGuard::set("HOME", "/missing/home");
 
@@ -965,8 +959,8 @@ mod tests {
         .unwrap();
 
         let _home_guard = EnvVarGuard::set("HOME", tmp.path());
-        let _env_guard = EnvVarGuard::remove("GOOGLE_WORKSPACE_PROJECT_ID");
-        let _config_guard = EnvVarGuard::remove("GOOGLE_WORKSPACE_CLI_CONFIG_DIR");
+        let _env_guard = EnvVarGuard::remove("XGC_PROJECT_ID");
+        let _config_guard = EnvVarGuard::remove("XGC_CONFIG_DIR");
         let _adc_guard = EnvVarGuard::remove("GOOGLE_APPLICATION_CREDENTIALS");
 
         assert_eq!(get_quota_project(), Some("adc-project".to_string()));
@@ -987,8 +981,8 @@ mod tests {
         let _home_guard = EnvVarGuard::set("HOME", tmp.path());
         let _adc_guard = EnvVarGuard::remove("GOOGLE_APPLICATION_CREDENTIALS");
         // Isolate from local environment
-        let _env_guard = EnvVarGuard::remove("GOOGLE_WORKSPACE_PROJECT_ID");
-        let _config_guard = EnvVarGuard::remove("GOOGLE_WORKSPACE_CLI_CONFIG_DIR");
+        let _env_guard = EnvVarGuard::remove("XGC_PROJECT_ID");
+        let _config_guard = EnvVarGuard::remove("XGC_CONFIG_DIR");
 
         assert_eq!(get_quota_project(), Some("my-project-123".to_string()));
     }

@@ -8,20 +8,19 @@ metadata:
     domain: "productivity"
     requires:
       bins:
-        - gws
+        - xgc
       skills:
-        - gws-sheets
-        - gws-calendar
+        - xgc-sheets
+        - xgc-calendar
 ---
 
 # Create Google Calendar Events from a Sheet
 
-> **PREREQUISITE:** Load the following skills to execute this recipe: `gws-sheets`, `gws-calendar`
+> **PREREQUISITE:** Load the following skills to execute this recipe: `xgc-sheets`, `xgc-calendar`
 
 Read event data from a Google Sheets spreadsheet and create Google Calendar entries for each row.
 
 ## Steps
 
-1. Read event data: `gws sheets +read --spreadsheet SHEET_ID --range "Events!A2:D"`
-2. For each row, create a calendar event: `gws calendar +insert --summary 'Team Standup' --start '2026-01-20T09:00:00' --end '2026-01-20T09:30:00' --attendee alice@company.com --attendee bob@company.com`
-
+1. Read event data: `xgc sheets +read --spreadsheet SHEET_ID --range "Events!A2:D"`
+2. For each row, create a calendar event: `xgc calendar +insert --summary 'Team Standup' --start '2026-01-20T09:00:00' --end '2026-01-20T09:30:00' --attendee alice@company.com --attendee bob@company.com`

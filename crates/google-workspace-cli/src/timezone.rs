@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Account timezone resolution for Google Workspace CLI.
+//! Account timezone resolution for xliner’s GWS-CLI.
 //!
 //! Resolves the authenticated user's timezone with the following priority:
 //! 1. Explicit `--timezone` CLI flag (hard error if invalid)
@@ -24,7 +24,7 @@ use crate::error::GwsError;
 use chrono_tz::Tz;
 use std::path::PathBuf;
 
-/// Cache filename stored in the gws config directory.
+/// Cache filename stored in the xgc config directory.
 const CACHE_FILENAME: &str = "account_timezone";
 
 /// Cache TTL in seconds (24 hours).
@@ -32,7 +32,7 @@ const CACHE_TTL_SECS: u64 = 86400;
 
 /// Returns the path to the timezone cache file.
 fn cache_path() -> PathBuf {
-    crate::auth_commands::config_dir().join(CACHE_FILENAME)
+    crate::auth_commands::profile_config_dir().join(CACHE_FILENAME)
 }
 
 /// Remove the cached timezone file. Called on auth login/logout to

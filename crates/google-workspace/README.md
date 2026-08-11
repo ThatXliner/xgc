@@ -2,7 +2,7 @@
 
 Core Rust library for interacting with Google Workspace APIs via the [Discovery Service](https://developers.google.com/discovery).
 
-This crate provides the foundational types and utilities used by the [`google-workspace-cli`](https://crates.io/crates/google-workspace-cli) (`gws`) command-line tool, and can be used independently for programmatic access.
+This crate provides the foundational types and utilities used by the [`xgc`](https://crates.io/crates/xgc) command-line tool, and can be used independently for programmatic access.
 
 > **Dynamic Discovery** — this library fetches Google's Discovery Documents at runtime rather than relying on generated client crates. When Google adds or updates an API endpoint, your code picks it up automatically.
 
@@ -37,4 +37,4 @@ async fn main() -> anyhow::Result<()> {
 
 ## License
 
-Apache-2.0 — see [LICENSE](https://github.com/googleworkspace/cli/blob/main/LICENSE).
+Apache-2.0 — see [LICENSE](https://github.com/ThatXliner/xgc/blob/main/LICENSE).

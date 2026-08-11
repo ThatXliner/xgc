@@ -124,9 +124,9 @@ impl Helper for EventsHelper {
                 )
                 .after_help("\
 EXAMPLES:
-  gws events +subscribe --target '//chat.googleapis.com/spaces/SPACE' --event-types 'google.workspace.chat.message.v1.created' --project my-project
-  gws events +subscribe --subscription projects/p/subscriptions/my-sub --once
-  gws events +subscribe ... --cleanup --output-dir ./events
+  xgc events +subscribe --target '//chat.googleapis.com/spaces/SPACE' --event-types 'google.workspace.chat.message.v1.created' --project my-project
+  xgc events +subscribe --subscription projects/p/subscriptions/my-sub --once
+  xgc events +subscribe ... --cleanup --output-dir ./events
 
 TIPS:
   Without --cleanup, Pub/Sub resources persist for reconnection.
@@ -158,8 +158,8 @@ TIPS:
                 .after_help(
                     "\
 EXAMPLES:
-  gws events +renew --name subscriptions/SUB_ID
-  gws events +renew --all --within 2d
+  xgc events +renew --name subscriptions/SUB_ID
+  xgc events +renew --all --within 2d
 
 TIPS:
   Subscriptions expire if not renewed periodically.

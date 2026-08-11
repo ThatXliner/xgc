@@ -8,20 +8,19 @@ metadata:
     domain: "productivity"
     requires:
       bins:
-        - gws
+        - xgc
       skills:
-        - gws-meet
+        - xgc-meet
 ---
 
 # Review Google Meet Attendance
 
-> **PREREQUISITE:** Load the following skills to execute this recipe: `gws-meet`
+> **PREREQUISITE:** Load the following skills to execute this recipe: `xgc-meet`
 
 Review who attended a Google Meet conference and for how long.
 
 ## Steps
 
-1. List recent conferences: `gws meet conferenceRecords list --format table`
-2. List participants: `gws meet conferenceRecords participants list --params '{"parent": "conferenceRecords/CONFERENCE_ID"}' --format table`
-3. Get session details: `gws meet conferenceRecords participants participantSessions list --params '{"parent": "conferenceRecords/CONFERENCE_ID/participants/PARTICIPANT_ID"}' --format table`
-
+1. List recent conferences: `xgc meet conferenceRecords list --format table`
+2. List participants: `xgc meet conferenceRecords participants list --params '{"parent": "conferenceRecords/CONFERENCE_ID"}' --format table`
+3. Get session details: `xgc meet conferenceRecords participants participantSessions list --params '{"parent": "conferenceRecords/CONFERENCE_ID/participants/PARTICIPANT_ID"}' --format table`

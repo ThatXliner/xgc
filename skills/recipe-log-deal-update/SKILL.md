@@ -8,21 +8,20 @@ metadata:
     domain: "sales"
     requires:
       bins:
-        - gws
+        - xgc
       skills:
-        - gws-sheets
-        - gws-drive
+        - xgc-sheets
+        - xgc-drive
 ---
 
 # Log Deal Update to Sheet
 
-> **PREREQUISITE:** Load the following skills to execute this recipe: `gws-sheets`, `gws-drive`
+> **PREREQUISITE:** Load the following skills to execute this recipe: `xgc-sheets`, `xgc-drive`
 
 Append a deal status update to a Google Sheets sales tracking spreadsheet.
 
 ## Steps
 
-1. Find the tracking sheet: `gws drive files list --params '{"q": "name = '\''Sales Pipeline'\'' and mimeType = '\''application/vnd.google-apps.spreadsheet'\''"}'`
-2. Read current data: `gws sheets +read --spreadsheet SHEET_ID --range "Pipeline!A1:F"`
-3. Append new row: `gws sheets +append --spreadsheet SHEET_ID --range 'Pipeline' --values '["2024-03-15", "Acme Corp", "Proposal Sent", "$50,000", "Q2", "jdoe"]'`
-
+1. Find the tracking sheet: `xgc drive files list --params '{"q": "name = '\''Sales Pipeline'\'' and mimeType = '\''application/vnd.google-apps.spreadsheet'\''"}'`
+2. Read current data: `xgc sheets +read --spreadsheet SHEET_ID --range "Pipeline!A1:F"`
+3. Append new row: `xgc sheets +append --spreadsheet SHEET_ID --range 'Pipeline' --values '["2024-03-15", "Acme Corp", "Proposal Sent", "$50,000", "Q2", "jdoe"]'`
