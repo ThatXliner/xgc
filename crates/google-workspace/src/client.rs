@@ -36,6 +36,7 @@ fn build_client_inner() -> Result<reqwest::Client, String> {
     }
 
     reqwest::Client::builder()
+        .use_rustls_tls()
         .default_headers(headers)
         .connect_timeout(std::time::Duration::from_secs(CONNECT_TIMEOUT_SECS))
         .build()
