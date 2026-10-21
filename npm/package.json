@@ -1,7 +1,7 @@
 {
   "name": "@thatxliner/xgc",
   "description": "xliner’s GWS-CLI — dynamic Google Workspace commands from Discovery Service",
-  "version": "0.22.5",
+  "version": "0.23.0",
   "license": "Apache-2.0",
   "author": "xliner (fork), Justin Poehnelt (upstream)",
   "repository": {

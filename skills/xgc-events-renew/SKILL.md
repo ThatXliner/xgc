@@ -2,7 +2,7 @@
 name: xgc-events-renew
 description: "Google Workspace Events: Renew/reactivate Workspace Events subscriptions."
 metadata:
-  version: 0.22.5
+  version: 0.23.0
   openclaw:
     category: "productivity"
     requires:

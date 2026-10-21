@@ -2,7 +2,7 @@
 name: xgc-shared
 description: "xgc CLI: Shared patterns for authentication, global flags, and output formatting."
 metadata:
-  version: 0.22.5
+  version: 0.23.0
   openclaw:
     category: "productivity"
     requires:

@@ -1,5 +1,21 @@
 # @googleworkspace/cli
 
+## 0.23.0
+
+### Minor Changes
+
+- 465850a: Add `xgc auth bootstrap` for guided, gcloud-free setup and safe installation of a downloaded Desktop OAuth client.
+- a3768d0: Add `--range` flag to `sheets +append` for targeting specific sheet tabs
+- 30d6a35: Add named authentication profiles and rebrand the fork as xliner’s GWS-CLI with the `xgc` command.
+
+### Patch Changes
+
+- d6befc6: Keep the patched Rustls certificate verifier when a downstream dependency also enables native TLS.
+- 9c0b3c8: Require the patched eMudhra certificate verifier for consumers of the Google Workspace library.
+- f1d1584: Update HTTP and TLS dependencies to reject the compromised eMudhra intermediate certificates.
+- af0e766: Allow manual security rebuilds through the existing release workflow.
+- f8f7451: Open the Google OAuth authorization URL in the default browser during login, with a printed URL fallback.
+
 ## 0.22.5
 
 ### Patch Changes

@@ -14,7 +14,7 @@
 
 [package]
 name = "xgc"
-version = "0.22.5"
+version = "0.23.0"
 edition = "2021"
 description = "xliner’s GWS-CLI — dynamic Google Workspace commands from Discovery Service"
 license = "Apache-2.0"
@@ -30,7 +30,7 @@ name = "xgc"
 path = "src/main.rs"
 
 [dependencies]
-google-workspace = { version = "0.22.5", path = "../google-workspace" }
+google-workspace = { version = "0.23.0", path = "../google-workspace" }
 tempfile = "3"
 aes-gcm = "0.10"
 anyhow = "1"

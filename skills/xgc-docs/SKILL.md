@@ -2,7 +2,7 @@
 name: xgc-docs
 description: "Read and write Google Docs."
 metadata:
-  version: 0.22.5
+  version: 0.23.0
   openclaw:
     category: "productivity"
     requires:
