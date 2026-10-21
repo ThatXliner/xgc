@@ -948,6 +948,7 @@ dependencies = [
  "anyhow",
  "percent-encoding",
  "reqwest",
+ "rustls-webpki",
  "serde",
  "serde_json",
  "serial_test",
